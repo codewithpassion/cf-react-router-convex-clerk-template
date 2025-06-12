@@ -12,122 +12,81 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
-import { PhotoCard } from "~/components/features/photos/photo-card";
+import { PhotoDetailModal } from "~/components/features/voting/photo-detail-modal";
+import {
+	CompetitionInfo,
+	VotingControls,
+} from "~/components/features/voting/voting-controls";
+import { VotingGallery } from "~/components/features/voting/voting-gallery";
 import { MainLayout } from "~/components/main-layout";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { useRealtimeCompetitionVotes } from "~/hooks/use-realtime-votes";
+import { trpc } from "~/lib/trpc";
 
-// Mock data for demonstration
-const mockCompetition = {
-	id: "1",
-	title: "Nature Photography Contest",
-	description:
-		"Capture the beauty of nature in all its forms. From landscapes to wildlife, show us the natural world through your lens. This competition celebrates the incredible diversity and beauty of our natural world.",
-	startDate: "2024-01-01T00:00:00",
-	endDate: "2024-02-28T23:59:59",
-	votingStartDate: "2024-03-01T00:00:00",
-	votingEndDate: "2024-03-15T23:59:59",
-	status: "open" as const,
-	rules: [
-		"Photos must be original and taken by the submitter",
-		"Maximum 3 submissions per participant",
-		"Photos must be related to nature theme",
-		"No excessive digital manipulation allowed",
-	],
-	prizes: [
-		"First Place: $500 + Featured Gallery Exhibition",
-		"Second Place: $300 + Photography Equipment",
-		"Third Place: $100 + Certificate",
-	],
-	_count: {
-		photos: 45,
-		votes: 892,
-		participants: 23,
-	},
-	categories: [
-		{
-			id: "1",
-			name: "Landscapes",
-			description: "Scenic natural vistas and landscapes",
-		},
-		{
-			id: "2",
-			name: "Wildlife",
-			description: "Animals in their natural habitat",
-		},
-	],
-};
-
-const mockPhotos = [
-	{
-		id: "1",
-		title: "Mountain Sunrise",
-		filePath:
-			"https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400",
-		voteCount: 23,
-		userHasVoted: false,
-		canVote: true,
-		status: "approved" as const,
-		photographer: { id: "1", name: "John Doe" },
-		competition: { id: "1", title: "Nature Photography Contest" },
-		category: { id: "1", name: "Landscapes" },
-		location: "Rocky Mountains, Colorado",
-	},
-	{
-		id: "2",
-		title: "Eagle in Flight",
-		filePath:
-			"https://images.unsplash.com/photo-1518467166778-b88f373ffec7?w=400",
-		voteCount: 18,
-		userHasVoted: true,
-		canVote: true,
-		status: "approved" as const,
-		photographer: { id: "2", name: "Jane Smith" },
-		competition: { id: "1", title: "Nature Photography Contest" },
-		category: { id: "2", name: "Wildlife" },
-		location: "Yellowstone National Park",
-	},
-];
 
 export default function CompetitionDetail() {
 	const { id } = useParams();
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+	const [viewMode, setViewMode] = useState<"grid" | "slideshow" | "list">(
+		"grid",
+	);
+	const [sortBy, setSortBy] = useState<
+		"random" | "recent" | "popular" | "least-voted"
+	>("random");
+	const [searchQuery, setSearchQuery] = useState("");
+	const [showOnlyUnvoted, setShowOnlyUnvoted] = useState(false);
+	const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
 
-	// Mock loading and error states
-	const isLoading = false;
-	const competition = mockCompetition;
-	const photos = mockPhotos;
+	// Get competition data from tRPC
+	const { data: competition, isLoading: competitionLoading } = trpc.competition.getById.useQuery(
+		{ id: id! },
+		{ enabled: !!id }
+	);
 
+	// Get competition photos
+	const { data: photosData, isLoading: photosLoading } = trpc.competition.getPhotos.useQuery(
+		{ 
+			competitionId: id!, 
+			categoryId: selectedCategory || undefined,
+			limit: 100
+		},
+		{ enabled: !!id }
+	);
+
+	const isLoading = competitionLoading || photosLoading;
+	const photos = photosData?.photos || [];
+
+	// Real-time vote updates
+	const { getPhotoVotes, hasUserVoted } = useRealtimeCompetitionVotes(id || "");
+
+	// Handle loading and error states
 	if (isLoading) {
 		return (
-			<div className="container mx-auto px-4 py-8">
-				<div className="animate-pulse space-y-8">
-					<div className="h-8 bg-gray-200 rounded w-1/3" />
-					<div className="h-64 bg-gray-200 rounded" />
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-						{[...Array(6)].map((_, i) => (
-							<div key={`skeleton-${i}`} className="h-64 bg-gray-200 rounded" />
-						))}
-					</div>
+			<MainLayout>
+				<div className="container mx-auto px-4 py-8">
+					<div className="text-center">Loading competition...</div>
 				</div>
-			</div>
+			</MainLayout>
 		);
 	}
 
 	if (!competition) {
 		return (
-			<div className="container mx-auto px-4 py-8 text-center">
-				<h1 className="text-2xl font-bold mb-4">Competition Not Found</h1>
-				<p className="text-gray-600 mb-4">
-					The competition you're looking for doesn't exist.
-				</p>
-				<Button asChild>
-					<Link to="/competitions">Back to Competitions</Link>
-				</Button>
-			</div>
+			<MainLayout>
+				<div className="container mx-auto px-4 py-8">
+					<div className="text-center">
+						<h1 className="text-2xl font-bold mb-4">Competition not found</h1>
+						<Link to="/competitions" className="text-blue-600 hover:underline">
+							Back to competitions
+						</Link>
+					</div>
+				</div>
+			</MainLayout>
 		);
 	}
+
 
 	const now = new Date();
 	const endDate = new Date(competition.endDate);
@@ -135,9 +94,78 @@ export default function CompetitionDetail() {
 		? formatDistanceToNow(endDate, { addSuffix: true })
 		: null;
 
-	const filteredPhotos = selectedCategory
-		? photos.filter((photo) => photo.category?.id === selectedCategory)
-		: photos;
+	// Filter and sort photos
+	let filteredPhotos = photos;
+
+	// Apply category filter
+	if (selectedCategory) {
+		filteredPhotos = filteredPhotos.filter(
+			(photo) => photo.category?.id === selectedCategory,
+		);
+	}
+
+	// Apply search filter
+	if (searchQuery) {
+		filteredPhotos = filteredPhotos.filter(
+			(photo) =>
+				photo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				photo.photographer.name
+					.toLowerCase()
+					.includes(searchQuery.toLowerCase()),
+		);
+	}
+
+	// Apply unvoted filter
+	if (showOnlyUnvoted) {
+		filteredPhotos = filteredPhotos.filter((photo) => !hasUserVoted(photo.id));
+	}
+
+	// Apply sorting
+	filteredPhotos = [...filteredPhotos].sort((a, b) => {
+		switch (sortBy) {
+			case "recent":
+				return (
+					new Date(b.createdAt || "").getTime() -
+					new Date(a.createdAt || "").getTime()
+				);
+			case "popular":
+				return getPhotoVotes(b.id) - getPhotoVotes(a.id);
+			case "least-voted":
+				return getPhotoVotes(a.id) - getPhotoVotes(b.id);
+			case "random":
+			default:
+				return Math.random() - 0.5;
+		}
+	});
+
+	const handlePhotoClick = (photo: any) => {
+		setSelectedPhoto(photo);
+	};
+
+	const handleVote = (photoId: string, voted: boolean) => {
+		console.log("Vote:", photoId, voted);
+		// This will be handled by the vote button internally
+	};
+
+	const handleNavigatePhoto = (direction: "prev" | "next") => {
+		if (!selectedPhoto) return;
+
+		const currentIndex = filteredPhotos.findIndex(
+			(p) => p.id === selectedPhoto.id,
+		);
+		let newIndex;
+
+		if (direction === "prev") {
+			newIndex =
+				currentIndex === 0 ? filteredPhotos.length - 1 : currentIndex - 1;
+		} else {
+			newIndex = (currentIndex + 1) % filteredPhotos.length;
+		}
+
+		setSelectedPhoto(filteredPhotos[newIndex]);
+	};
+
+	const votedCount = photos.filter((photo) => hasUserVoted(photo.id)).length;
 
 	return (
 		<MainLayout>
@@ -230,7 +258,26 @@ export default function CompetitionDetail() {
 					</div>
 				</div>
 
-				<div className="container mx-auto px-4 py-8">
+				<div className="container mx-auto px-4 py-8 space-y-8">
+					{/* Voting Controls */}
+					{competition.status === "voting" && (
+						<VotingControls
+							categories={competition.categories}
+							selectedCategory={selectedCategory}
+							onCategoryChange={setSelectedCategory}
+							sortBy={sortBy}
+							onSortChange={setSortBy}
+							viewMode={viewMode}
+							onViewModeChange={setViewMode}
+							searchQuery={searchQuery}
+							onSearchChange={setSearchQuery}
+							showOnlyUnvoted={showOnlyUnvoted}
+							onShowUnvotedChange={setShowOnlyUnvoted}
+							totalPhotos={photos.length}
+							votedPhotos={votedCount}
+						/>
+					)}
+
 					<div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
 						{/* Sidebar */}
 						<div className="lg:col-span-1 space-y-6">
@@ -328,49 +375,28 @@ export default function CompetitionDetail() {
 								</div>
 							</div>
 
-							{filteredPhotos.length > 0 ? (
-								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-									{filteredPhotos.map((photo) => (
-										<PhotoCard
-											key={photo.id}
-											photo={photo}
-											showVoting={competition.status === "voting"}
-											onVote={(photoId, voted) => {
-												console.log("Vote:", photoId, voted);
-											}}
-											onClick={() => console.log("View photo:", photo.id)}
-										/>
-									))}
-								</div>
-							) : (
-								<div className="text-center py-12">
-									<div className="max-w-md mx-auto">
-										<div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-											<Camera className="w-8 h-8 text-gray-400" />
-										</div>
-										<h3 className="text-lg font-medium text-gray-900 mb-2">
-											No photos yet
-										</h3>
-										<p className="text-gray-600 mb-4">
-											{selectedCategory
-												? "No photos have been submitted to this category yet."
-												: "No photos have been submitted to this competition yet."}
-										</p>
-										{competition.status === "open" && (
-											<Button asChild>
-												<Link to={`/competitions/${competition.id}/submit`}>
-													<Upload className="w-4 h-4 mr-2" />
-													Be the first to submit
-												</Link>
-											</Button>
-										)}
-									</div>
-								</div>
-							)}
+							{/* Voting Gallery */}
+							<VotingGallery
+								photos={filteredPhotos}
+								viewMode={viewMode}
+								isLoading={isLoading}
+								onPhotoClick={handlePhotoClick}
+								onVote={handleVote}
+								competitionStatus={competition.status}
+							/>
 						</div>
 					</div>
 				</div>
 			</div>
+
+			{/* Photo Detail Modal */}
+			<PhotoDetailModal
+				photo={selectedPhoto}
+				isOpen={!!selectedPhoto}
+				onClose={() => setSelectedPhoto(null)}
+				onNavigate={handleNavigatePhoto}
+				competitionStatus={competition.status}
+			/>
 		</MainLayout>
 	);
 }

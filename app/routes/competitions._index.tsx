@@ -13,63 +13,8 @@ import {
 	SelectValue,
 } from "~/components/ui/select";
 import { Skeleton } from "~/components/ui/skeleton";
+import { trpc } from "~/lib/trpc";
 
-// Mock data for demonstration - replace with actual tRPC queries
-const mockCompetitions = [
-	{
-		id: "1",
-		title: "Nature Photography Contest",
-		description:
-			"Capture the beauty of nature in all its forms. From landscapes to wildlife, show us the natural world through your lens.",
-		startDate: "2024-01-01",
-		endDate: "2024-02-28",
-		status: "open" as const,
-		_count: {
-			photos: 45,
-			votes: 892,
-		},
-		categories: [
-			{ id: "1", name: "Landscapes" },
-			{ id: "2", name: "Wildlife" },
-		],
-	},
-	{
-		id: "2",
-		title: "Street Photography Challenge",
-		description:
-			"Document life as it happens on the streets. Capture candid moments, urban scenes, and the energy of city life.",
-		startDate: "2024-02-01",
-		endDate: "2024-03-15",
-		status: "voting" as const,
-		_count: {
-			photos: 78,
-			votes: 1245,
-		},
-		categories: [
-			{ id: "3", name: "Urban Life" },
-			{ id: "4", name: "Candid Moments" },
-		],
-	},
-	{
-		id: "3",
-		title: "Portrait Masters",
-		description:
-			"The art of capturing human emotion and character through portraiture.",
-		startDate: "2024-01-15",
-		endDate: "2024-02-15",
-		status: "closed" as const,
-		_count: {
-			photos: 123,
-			votes: 2341,
-		},
-		categories: [
-			{ id: "5", name: "Studio Portraits" },
-			{ id: "6", name: "Environmental Portraits" },
-		],
-	},
-];
-
-const isLoading = false; // Replace with actual loading state
 
 export default function CompetitionsIndex() {
 	const navigate = useNavigate();
@@ -77,13 +22,21 @@ export default function CompetitionsIndex() {
 	const [statusFilter, setStatusFilter] = useState("all");
 	const [sortBy, setSortBy] = useState("recent");
 
-	const filteredCompetitions = mockCompetitions.filter((competition) => {
+	// Get competitions from tRPC
+	const { data: competitionsData, isLoading } = trpc.competition.getAll.useQuery({
+		status: statusFilter === "all" ? undefined : (statusFilter as "open" | "voting" | "closed"),
+		limit: 50,
+	});
+
+	const competitions = competitionsData?.competitions || [];
+
+	// Filter by search query (server-side filtering would be better for large datasets)
+	const filteredCompetitions = competitions.filter((competition) => {
+		if (!searchQuery) return true;
 		const matchesSearch =
 			competition.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
 			competition.description.toLowerCase().includes(searchQuery.toLowerCase());
-		const matchesStatus =
-			statusFilter === "all" || competition.status === statusFilter;
-		return matchesSearch && matchesStatus;
+		return matchesSearch;
 	});
 
 	return (

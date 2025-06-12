@@ -14,70 +14,8 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { useAuth } from "~/hooks/use-auth";
+import { trpc } from "~/lib/trpc";
 
-// Mock data - replace with tRPC hooks
-const mockPhotos = [
-	{
-		id: "1",
-		title: "Mountain Sunrise",
-		filePath:
-			"https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400",
-		voteCount: 23,
-		userHasVoted: false,
-		canVote: false,
-		status: "approved" as const,
-		photographer: { id: "user-1", name: "You" },
-		competition: { id: "1", title: "Nature Photography Contest" },
-		category: { id: "1", name: "Landscapes" },
-		createdAt: "2024-01-15T10:30:00Z",
-		location: "Rocky Mountains, Colorado",
-	},
-	{
-		id: "2",
-		title: "Urban Reflections",
-		filePath:
-			"https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=400",
-		voteCount: 18,
-		userHasVoted: false,
-		canVote: false,
-		status: "pending" as const,
-		photographer: { id: "user-1", name: "You" },
-		competition: { id: "2", title: "City Life Challenge" },
-		category: { id: "2", name: "Street Photography" },
-		createdAt: "2024-01-20T14:15:00Z",
-		location: "Downtown Seattle",
-	},
-	{
-		id: "3",
-		title: "Golden Hour Portrait",
-		filePath:
-			"https://images.unsplash.com/photo-1494790108755-2616c2d41390?w=400",
-		voteCount: 31,
-		userHasVoted: false,
-		canVote: false,
-		status: "rejected" as const,
-		photographer: { id: "user-1", name: "You" },
-		competition: { id: "3", title: "Portrait Masters" },
-		category: { id: "3", name: "Portrait" },
-		createdAt: "2024-01-25T16:45:00Z",
-		location: "Central Park, NYC",
-	},
-	{
-		id: "4",
-		title: "Coastal Waves",
-		filePath:
-			"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400",
-		voteCount: 12,
-		userHasVoted: false,
-		canVote: false,
-		status: "approved" as const,
-		photographer: { id: "user-1", name: "You" },
-		competition: { id: "1", title: "Nature Photography Contest" },
-		category: { id: "4", name: "Seascapes" },
-		createdAt: "2024-02-01T09:20:00Z",
-		location: "Big Sur, California",
-	},
-];
 
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
 type SortBy = "date" | "title" | "votes" | "status";
@@ -90,10 +28,10 @@ export default function UserPhotos() {
 	const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
 	const [sortBy, setSortBy] = useState<SortBy>("date");
 	const [searchQuery, setSearchQuery] = useState("");
-	const [isLoading] = useState(false);
+	// Get user's photos from tRPC
+	const { data: userPhotos, isLoading } = trpc.photo.getUserPhotos.useQuery({});
 
-	// Mock data - replace with actual tRPC calls
-	const photos = mockPhotos;
+	const photos = userPhotos || [];
 
 	const filteredPhotos = photos
 		.filter((photo) => {
