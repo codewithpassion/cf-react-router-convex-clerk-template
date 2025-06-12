@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { cloudflareContextMiddleware } from "packages/better-auth";
 import { type AppLoadContext, createRequestHandler } from "react-router";
 import { authFactory } from "~~/auth";
+import { app as apiApp } from "../api";
 import { D1DbMiddleware } from "./middleware";
 import type { AppType } from "./types";
 
@@ -40,6 +41,9 @@ app.get("/api/seed", async (c) => {
 app.on(["POST", "GET"], "/api/auth/*", async (c) => {
 	return (await authFactory(c.env, c.req.raw)).handler(c.req.raw);
 });
+
+// API routes (including tRPC)
+app.route("/api", apiApp);
 
 app.use(async (c) => {
 	const reactRouterContext = {

@@ -1,4 +1,4 @@
-import { trpcServer } from "@trpc/server/adapters/fetch";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { Hono } from "hono";
 import type { AppType } from "../workers/types";
 import { appRouter } from "./trpc/root";
@@ -8,17 +8,19 @@ const app = new Hono<AppType>();
 
 // tRPC endpoint
 app.all("/trpc/*", async (c) => {
-	const response = await trpcServer({
+	const response = await fetchRequestHandler({
+		endpoint: "/trpc",
+		req: c.req.raw,
 		router: appRouter,
-		createContext: async (opts) => {
+		createContext: async () => {
 			return createTRPCContext({
 				env: c.env,
 				executionCtx: c.executionCtx,
-				request: opts.req,
-				user: c.get("user"), // This would come from auth middleware
+				request: c.req.raw,
+				user: undefined, // TODO: Extract user from auth headers
 			});
 		},
-	})(c.req.raw);
+	});
 
 	return response;
 });
