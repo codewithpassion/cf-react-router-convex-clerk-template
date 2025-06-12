@@ -1,10 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import {
-	adminProcedure,
-	createTRPCRouter,
-	protectedProcedure,
-} from "../trpc";
+import { adminProcedure, createTRPCRouter, protectedProcedure } from "../trpc";
 
 // Admin router for admin-specific functionality
 export const adminRouter = createTRPCRouter({
@@ -148,9 +144,11 @@ export const adminRouter = createTRPCRouter({
 		.input(
 			z.object({
 				ids: z.array(z.string()),
-				updates: z.object({
-					status: z.enum(["draft", "open", "voting", "closed"]).optional(),
-				}).optional(),
+				updates: z
+					.object({
+						status: z.enum(["draft", "open", "voting", "closed"]).optional(),
+					})
+					.optional(),
 				action: z.enum(["delete"]).optional(),
 			}),
 		)

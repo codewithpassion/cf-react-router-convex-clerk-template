@@ -15,7 +15,6 @@ import {
 import { Skeleton } from "~/components/ui/skeleton";
 import { trpc } from "~/lib/trpc";
 
-
 export default function CompetitionsIndex() {
 	const navigate = useNavigate();
 	const [searchQuery, setSearchQuery] = useState("");
@@ -23,10 +22,14 @@ export default function CompetitionsIndex() {
 	const [sortBy, setSortBy] = useState("recent");
 
 	// Get competitions from tRPC
-	const { data: competitionsData, isLoading } = trpc.competition.getAll.useQuery({
-		status: statusFilter === "all" ? undefined : (statusFilter as "open" | "voting" | "closed"),
-		limit: 50,
-	});
+	const { data: competitionsData, isLoading } =
+		trpc.competition.getAll.useQuery({
+			status:
+				statusFilter === "all"
+					? undefined
+					: (statusFilter as "open" | "voting" | "closed"),
+			limit: 50,
+		});
 
 	const competitions = competitionsData?.competitions || [];
 

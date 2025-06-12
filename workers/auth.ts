@@ -28,6 +28,14 @@ export async function authFactory(env: AppType["Bindings"], request: Request) {
 			schema: authAdminSchema,
 			provider: "sqlite",
 		}),
+		user: {
+			additionalFields: {
+				role: {
+					type: "string",
+					defaultValue: "user",
+				},
+			},
+		},
 
 		secondaryStorage: getCloudflareSecondaryStorage({ KV: env?.SESSIONS }),
 		emailAndPassword: { enabled: false },

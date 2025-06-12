@@ -41,7 +41,7 @@ export const competitionRouter = createTRPCRouter({
 								description: "Natural landscapes and scenery",
 							},
 							{
-								id: "2", 
+								id: "2",
 								name: "Wildlife",
 								description: "Animals in their natural habitat",
 							},
@@ -86,7 +86,8 @@ export const competitionRouter = createTRPCRouter({
 				return {
 					id: "1",
 					title: "Nature Photography Contest",
-					description: "Capture the beauty of nature in all its forms. From majestic landscapes to intimate wildlife moments, show us the natural world through your unique perspective.",
+					description:
+						"Capture the beauty of nature in all its forms. From majestic landscapes to intimate wildlife moments, show us the natural world through your unique perspective.",
 					status: "open" as const,
 					startDate: new Date("2024-01-01"),
 					endDate: new Date("2024-02-28"),
@@ -101,9 +102,9 @@ export const competitionRouter = createTRPCRouter({
 						"Images must be captured after competition start date",
 					],
 					prizes: [
-						{ place: 1, title: "Grand Prize", description: "$1,000 cash prize" },
-						{ place: 2, title: "Second Place", description: "$500 cash prize" },
-						{ place: 3, title: "Third Place", description: "$250 cash prize" },
+						"Grand Prize: $1,000 cash prize",
+						"Second Place: $500 cash prize",
+						"Third Place: $250 cash prize",
 					],
 					judges: [
 						{
@@ -148,7 +149,42 @@ export const competitionRouter = createTRPCRouter({
 					updatedAt: new Date("2024-01-15"),
 				};
 			}
-			
+			if (input.id === "2") {
+				return {
+					id: "2",
+					title: "Street Photography Challenge",
+					description: "Document life as it happens on the streets",
+					status: "voting" as const,
+					startDate: new Date("2024-02-01"),
+					endDate: new Date("2024-03-15"),
+					votingStartDate: new Date("2024-03-16"),
+					votingEndDate: new Date("2024-03-30"),
+					featured: false,
+					maxPhotosPerUser: 5,
+					rules: [
+						"All photos must be taken in a public space.",
+						"Respect privacy and local laws.",
+						"Submissions should be in black and white.",
+					],
+					prizes: ["First Prize: Camera Bag", "Second Prize: $100 Gift Card"],
+					categories: [
+						{
+							id: "3",
+							name: "Urban Life",
+							description: "City life and urban environments",
+							_count: { submissions: 78 },
+						},
+					],
+					_count: {
+						submissions: 78,
+						votes: 1245,
+						participants: 62,
+					},
+					createdAt: new Date("2024-01-15"),
+					updatedAt: new Date("2024-02-01"),
+				};
+			}
+
 			throw new TRPCError({
 				code: "NOT_FOUND",
 				message: "Competition not found",
@@ -173,7 +209,8 @@ export const competitionRouter = createTRPCRouter({
 					{
 						id: "photo1",
 						title: "Mountain Sunrise",
-						description: "Captured this stunning sunrise from the peak of Mount Washington",
+						description:
+							"Captured this stunning sunrise from the peak of Mount Washington",
 						filePath: "/photos/photo1.jpg",
 						categoryId: "1",
 						categoryName: "Landscapes",
@@ -257,7 +294,7 @@ export const competitionRouter = createTRPCRouter({
 					},
 					{
 						id: "2",
-						name: "Wildlife", 
+						name: "Wildlife",
 						submissionCount: 22,
 						maxSubmissions: null,
 					},

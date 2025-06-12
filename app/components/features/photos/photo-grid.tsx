@@ -118,7 +118,12 @@ export function PhotoGrid({
 		return (
 			<div className={getGridClasses()}>
 				{Array.from({ length: 8 }).map((_, index) => (
-					<PhotoGridSkeleton key={index} layout={viewMode} size={size} />
+					// biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+					<PhotoGridSkeleton
+						key={`grid-${index}`}
+						layout={viewMode}
+						size={size}
+					/>
 				))}
 			</div>
 		);

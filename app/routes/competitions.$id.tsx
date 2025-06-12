@@ -17,14 +17,16 @@ import {
 	CompetitionInfo,
 	VotingControls,
 } from "~/components/features/voting/voting-controls";
-import { VotingGallery } from "~/components/features/voting/voting-gallery";
+import {
+	type Photo,
+	VotingGallery,
+} from "~/components/features/voting/voting-gallery";
 import { MainLayout } from "~/components/main-layout";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useRealtimeCompetitionVotes } from "~/hooks/use-realtime-votes";
 import { trpc } from "~/lib/trpc";
-
 
 export default function CompetitionDetail() {
 	const { id } = useParams();
@@ -37,26 +39,34 @@ export default function CompetitionDetail() {
 	>("random");
 	const [searchQuery, setSearchQuery] = useState("");
 	const [showOnlyUnvoted, setShowOnlyUnvoted] = useState(false);
-	const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
+	const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
 
 	// Get competition data from tRPC
-	const { data: competition, isLoading: competitionLoading } = trpc.competition.getById.useQuery(
-		{ id: id! },
-		{ enabled: !!id }
-	);
+	const { data: competition, isLoading: competitionLoading } =
+		trpc.competition.getById.useQuery({ id: id ?? "" }, { enabled: !!id });
 
 	// Get competition photos
-	const { data: photosData, isLoading: photosLoading } = trpc.competition.getPhotos.useQuery(
-		{ 
-			competitionId: id!, 
-			categoryId: selectedCategory || undefined,
-			limit: 100
-		},
-		{ enabled: !!id }
-	);
+	const { data: photosData, isLoading: photosLoading } =
+		trpc.competition.getPhotos.useQuery(
+			{
+				competitionId: id ?? "",
+				categoryId: selectedCategory || undefined,
+				limit: 100,
+			},
+			{ enabled: !!id },
+		);
 
 	const isLoading = competitionLoading || photosLoading;
-	const photos = photosData?.photos || [];
+	const photos =
+		photosData?.photos.map((p) => ({
+			...p,
+			canVote: competition?.status === "voting",
+			status: "approved" as const,
+			category: {
+				id: p.categoryId,
+				name: p.categoryName,
+			},
+		})) || [];
 
 	// Real-time vote updates
 	const { getPhotoVotes, hasUserVoted } = useRealtimeCompetitionVotes(id || "");
@@ -87,7 +97,6 @@ export default function CompetitionDetail() {
 		);
 	}
 
-
 	const now = new Date();
 	const endDate = new Date(competition.endDate);
 	const timeLeft = isAfter(endDate, now)
@@ -100,7 +109,7 @@ export default function CompetitionDetail() {
 	// Apply category filter
 	if (selectedCategory) {
 		filteredPhotos = filteredPhotos.filter(
-			(photo) => photo.category?.id === selectedCategory,
+			(photo) => photo.categoryId === selectedCategory,
 		);
 	}
 
@@ -125,20 +134,19 @@ export default function CompetitionDetail() {
 		switch (sortBy) {
 			case "recent":
 				return (
-					new Date(b.createdAt || "").getTime() -
-					new Date(a.createdAt || "").getTime()
+					new Date(b.submittedAt || "").getTime() -
+					new Date(a.submittedAt || "").getTime()
 				);
 			case "popular":
 				return getPhotoVotes(b.id) - getPhotoVotes(a.id);
 			case "least-voted":
 				return getPhotoVotes(a.id) - getPhotoVotes(b.id);
-			case "random":
 			default:
 				return Math.random() - 0.5;
 		}
 	});
 
-	const handlePhotoClick = (photo: any) => {
+	const handlePhotoClick = (photo: Photo) => {
 		setSelectedPhoto(photo);
 	};
 
@@ -153,7 +161,7 @@ export default function CompetitionDetail() {
 		const currentIndex = filteredPhotos.findIndex(
 			(p) => p.id === selectedPhoto.id,
 		);
-		let newIndex;
+		let newIndex: number;
 
 		if (direction === "prev") {
 			newIndex =
@@ -311,7 +319,7 @@ export default function CompetitionDetail() {
 										>
 											{category.name} (
 											{
-												photos.filter((p) => p.category?.id === category.id)
+												photos.filter((p) => p.categoryId === category.id)
 													.length
 											}
 											)
@@ -327,11 +335,8 @@ export default function CompetitionDetail() {
 								</CardHeader>
 								<CardContent>
 									<ul className="space-y-2 text-sm">
-										{competition.rules.map((rule, index) => (
-											<li
-												key={`rule-${index}`}
-												className="flex items-start gap-2"
-											>
+										{competition.rules?.map((rule, index) => (
+											<li key={rule} className="flex items-start gap-2">
 												<span className="text-blue-600 mt-1">•</span>
 												<span>{rule}</span>
 											</li>
@@ -347,11 +352,8 @@ export default function CompetitionDetail() {
 								</CardHeader>
 								<CardContent>
 									<ul className="space-y-2 text-sm">
-										{competition.prizes.map((prize, index) => (
-											<li
-												key={`prize-${index}`}
-												className="flex items-start gap-2"
-											>
+										{competition.prizes?.map((prize, index) => (
+											<li key={prize} className="flex items-start gap-2">
 												<Trophy className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
 												<span>{prize}</span>
 											</li>

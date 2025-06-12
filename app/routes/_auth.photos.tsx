@@ -16,7 +16,6 @@ import { Input } from "~/components/ui/input";
 import { useAuth } from "~/hooks/use-auth";
 import { trpc } from "~/lib/trpc";
 
-
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
 type SortBy = "date" | "title" | "votes" | "status";
 
