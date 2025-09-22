@@ -5,7 +5,7 @@ A modern, production-ready template for building full-stack React applications u
 ## Features
 
 - 🚀 Server-side rendering
-- 🗄️ Convex real-time database
+- 🗄️ Supabase/postgres database
 - 🪟 ShadCN components
 - 🔑 Authentication with Clerk
 - ⚡️ Hot Module Replacement (HMR)

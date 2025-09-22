@@ -10,7 +10,7 @@ import {
 
 export async function action({ request, context }: ActionFunctionArgs) {
 	// For now, we'll skip authentication check in the API route
-	// since Clerk handles auth at the client level and in Convex functions
+	// since Clerk handles auth at the client level and in Postgres functions
 	// In production, you'd want to verify the session here
 
 	// TODO: Add proper server-side authentication check

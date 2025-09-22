@@ -104,7 +104,7 @@ export function UserCreateForm() {
 					<ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
 						<li>User signs up or is created in Clerk</li>
 						<li>
-							Clerk triggers webhook or user signs in, syncing data to Convex
+							Clerk triggers webhook or user signs in, syncing data to Postgres
 							database
 						</li>
 						<li>Default role "user" is assigned automatically</li>

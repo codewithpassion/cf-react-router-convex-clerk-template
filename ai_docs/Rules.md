@@ -5,8 +5,6 @@
 - `bun build`: Build for production
 - `bun deploy`: Build and deploy to Cloudflare
 - `bun preview`: Preview production build locally
-- `bun convex:dev`: Start Convex dev server
-- `bun convex:deploy`: Deploy to production
 
 # Style Guide
 
@@ -35,9 +33,8 @@
 ## Backend
 - Always use `bun` as the package manager
 - Use `hono` for backend functionality
-- Database: Convex real-time database with schemas in `/convex/schema.ts`
-- Data storage: Convex with automatic real-time sync
-- Use Convex functions for data access
+- Database: Supabase/Postgres database with schemas in `/app/lib/schema.ts`
+- Data storage: Postgress 
 
 ## Environment Variables & Types
 - **Never directly edit** `worker-configuration.d.ts` (auto-generated file)
