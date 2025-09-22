@@ -22,7 +22,7 @@ Build a production-ready commercial lease payment platform using Cloudflare Work
    - Multiple trust account support per agency
    - Configurable payout schedules (default weekly)
    - Rich transaction metadata for reconciliation
-   - Export capabilities for property management systems
+   - Export capabilities for major US property management systems
 
 3. **Payment Orchestration**
    - Destination charges routing funds directly to agencies
@@ -33,7 +33,7 @@ Build a production-ready commercial lease payment platform using Cloudflare Work
 
 4. **Reconciliation & Reporting**
    - Daily CSV/Excel exports with full transaction details
-   - MRI/Yardi/AppFolio compatible data formats
+   - MRI/Yardi/AppFolio/RentManager/Buildium compatible data formats
    - Rich metadata on all charges and transfers
    - Statement descriptor management for bank reconciliation
    - Real-time dashboard with payment status tracking
@@ -56,7 +56,7 @@ export async function createConnectedAccount(
 ) {
   const account = await stripe.accounts.create({
     type: 'custom',
-    country: agencyData.country || 'AU',
+    country: agencyData.country || 'US',
     email: agencyData.email,
     business_type: agencyData.businessType,
     capabilities: {
@@ -65,7 +65,7 @@ export async function createConnectedAccount(
     },
     business_profile: {
       name: agencyData.businessName,
-      mcc: '6513', // Real Estate Agents and Managers
+      mcc: '6513', // Real Estate Agents and Managers (US standard)
     },
     settings: {
       payouts: {
@@ -112,7 +112,7 @@ export async function createLeasePayment(
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: totalChargeCents,
-    currency: 'aud',
+    currency: 'usd',
     customer: paymentData.tenantId,
     payment_method: paymentData.paymentMethodId,
     off_session: true,
@@ -130,7 +130,7 @@ export async function createLeasePayment(
     metadata: {
       tenant_id: paymentData.metadata.tenantId,
       tenant_name: paymentData.metadata.tenantName,
-      tenant_abn: paymentData.metadata.tenantAbn,
+      tenant_ein: paymentData.metadata.tenantEin,
       lease_id: paymentData.metadata.leaseId,
       agency_id: paymentData.metadata.agencyId,
       agency_ref: paymentData.metadata.agencyRef,
@@ -241,10 +241,10 @@ CREATE TABLE tenants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   legal_name VARCHAR(255) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
-  abn VARCHAR(20),
+  ein VARCHAR(10), -- US Employer Identification Number
   stripe_customer_id VARCHAR(255) UNIQUE,
   default_payment_method_id VARCHAR(255),
-  timezone VARCHAR(50) DEFAULT 'Australia/Sydney',
+  timezone VARCHAR(50) DEFAULT 'America/New_York',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
@@ -252,7 +252,7 @@ CREATE TABLE tenants (
 CREATE TABLE agencies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
-  abn VARCHAR(20),
+  ein VARCHAR(10), -- US Employer Identification Number
   stripe_account_id VARCHAR(255) UNIQUE,
   onboarding_status VARCHAR(50) DEFAULT 'pending',
   payout_schedule VARCHAR(50) DEFAULT 'weekly',
@@ -263,8 +263,9 @@ CREATE TABLE trust_accounts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   agency_id UUID NOT NULL,
   account_name VARCHAR(255) NOT NULL,
-  bsb VARCHAR(10) NOT NULL,
+  routing_number VARCHAR(9) NOT NULL,
   account_number_last4 VARCHAR(4) NOT NULL,
+  account_type VARCHAR(20) DEFAULT 'checking',
   is_default BOOLEAN DEFAULT FALSE,
   FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE
 );
@@ -273,9 +274,9 @@ CREATE TABLE properties (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   agency_id UUID NOT NULL,
   address_line VARCHAR(255) NOT NULL,
-  suburb VARCHAR(100) NOT NULL,
-  state VARCHAR(50) NOT NULL,
-  postcode VARCHAR(10) NOT NULL,
+  city VARCHAR(100) NOT NULL,
+  state VARCHAR(2) NOT NULL,
+  zip_code VARCHAR(10) NOT NULL,
   external_ref VARCHAR(100),
   FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE
 );
@@ -286,7 +287,7 @@ CREATE TABLE leases (
   tenant_id UUID NOT NULL,
   agency_ref VARCHAR(100) NOT NULL,
   rent_amount_cents BIGINT NOT NULL,
-  rent_currency VARCHAR(3) DEFAULT 'AUD',
+  rent_currency VARCHAR(3) DEFAULT 'USD',
   frequency VARCHAR(20) CHECK(frequency IN ('weekly', 'fortnightly', 'monthly')),
   next_due_at TIMESTAMP WITH TIME ZONE,
   status VARCHAR(50) DEFAULT 'active',
@@ -350,10 +351,10 @@ export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
   legalName: varchar('legal_name', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull().unique(),
-  abn: varchar('abn', { length: 20 }),
+  ein: varchar('ein', { length: 10 }), // US Employer Identification Number
   stripeCustomerId: varchar('stripe_customer_id', { length: 255 }).unique(),
   defaultPaymentMethodId: varchar('default_payment_method_id', { length: 255 }),
-  timezone: varchar('timezone', { length: 50 }).default('Australia/Sydney'),
+  timezone: varchar('timezone', { length: 50 }).default('America/New_York'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });
@@ -361,7 +362,7 @@ export const tenants = pgTable('tenants', {
 export const agencies = pgTable('agencies', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 255 }).notNull(),
-  abn: varchar('abn', { length: 20 }),
+  ein: varchar('ein', { length: 10 }), // US Employer Identification Number
   stripeAccountId: varchar('stripe_account_id', { length: 255 }).unique(),
   onboardingStatus: varchar('onboarding_status', { length: 50 }).default('pending'),
   payoutSchedule: varchar('payout_schedule', { length: 50 }).default('weekly'),
@@ -587,7 +588,7 @@ interface ReconciliationMetadata {
   // Required fields for agency reconciliation
   tenant_id: string;
   tenant_name: string;
-  tenant_abn?: string;
+  tenant_ein?: string; // US Employer Identification Number
   lease_id: string;
   agency_id: string;
   agency_ref: string; // Their internal reference
@@ -604,7 +605,7 @@ interface ReconciliationMetadata {
   run_sequence: string; // For idempotency
 }
 
-// Export format for MRI/Yardi
+// Export format for US Property Management Systems (MRI/Yardi/AppFolio/RentManager/Buildium)
 interface ExportRow {
   date: string;
   time: string;
@@ -661,10 +662,10 @@ interface ExportRow {
    - Solution: Clear communication about fund availability
    - Offer configurable payout schedules
 
-3. **International Payments**
-   - Currency conversion fees may apply
-   - Solution: Support multi-currency (start with AUD)
-   - Clear fee disclosure
+3. **Interstate Payments**
+   - No currency conversion needed within US
+   - Solution: Optimize for domestic ACH transfers
+   - State-specific regulations may apply
 
 4. **Dispute Handling**
    - Platform holds dispute liability with destination charges
@@ -693,22 +694,22 @@ interface ExportRow {
    - Solution: Use Drizzle's query builder for optimized SQL
    - Implementation: Proper indexing and query optimization
 
-### Australian Market Specifics
+### US Market Specifics
 
-1. **Trust Account Regulations**
-   - Strict requirements for handling client funds
-   - Solution: Direct deposit to agency trust accounts
-   - Maintain complete audit trail
+1. **Escrow Account Regulations**
+   - State-specific requirements for handling client funds in real estate transactions
+   - Solution: Direct deposit to licensed real estate broker escrow accounts
+   - Maintain complete audit trail and comply with state real estate commission requirements
 
-2. **GST Considerations**
-   - 10% GST may apply to platform fee
-   - Solution: Configurable GST handling
-   - Tax-compliant invoicing
+2. **Sales Tax Considerations**
+   - Sales tax rates vary by state (0-10%+ may apply to platform fee)
+   - Solution: Configurable sales tax handling by jurisdiction
+   - Tax-compliant invoicing with proper nexus considerations
 
 3. **Banking Integration**
-   - BSB and account number validation
-   - Solution: Integrate Australian bank account validation
-   - Support for major Australian banks
+   - ACH routing number and account number validation
+   - Solution: Integrate US bank account validation (ABA routing numbers)
+   - Support for major US banks and credit unions
 
 ### Error Handling Patterns
 
@@ -874,7 +875,7 @@ interface TestingStrategy {
 
 3. **Integration Requirements**
    - Stripe Connect Custom fully integrated
-   - CSV export compatible with MRI format
+   - CSV export compatible with MRI, Yardi, AppFolio, RentManager, and Buildium formats
    - Email notifications working reliably
    - Webhook processing with < 1s latency
    - Rich metadata on all transactions
@@ -883,7 +884,7 @@ interface TestingStrategy {
    - Platform fee collection working (3% per transaction)
    - Agencies receiving payouts on schedule
    - Tenants earning reward points confirmed
-   - Tax-deductible receipts accepted by accountants
+   - IRS-compliant receipts accepted by US accountants
 
 ### Validation Tests
 
