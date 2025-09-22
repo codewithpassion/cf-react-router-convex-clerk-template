@@ -1,0 +1,207 @@
+         LeasePoints — MVP Brief (One Pager) 
+         Goal 
+         Enable businesses to pay commercial lease via credit card/Amex to earn points. We charge a 
+         flat 3% platform fee per transaction (tenant sees this clearly; it’s treated as a deductible 
+         business expense). Funds are routed to real estate agency/landlord trust accounts via 
+         Stripe Connect Custom with clean reconciliation. 
+         Primary Users & Roles 
+           ●  Tenant (Payer): saves card, schedules payments (weekly/fortnightly/monthly), receives 
+             receipts. 
+              
+           ●  Agency/Landlord (Payee): onboarded to Stripe Connect, receives funds to trust 
+             account(s), gets reconciliation exports. 
+         MVP Scope (what we’re shipping first) 
+           1.  Tenant payment flow 
+              
+                ○  Create tenant profile → link lease → add card (Amex/major cards). 
+                   
+                ○  Choose schedule: weekly / fortnightly / monthly (set 
+                  day-of-week/day-of-month), start date, end/ongoing. 
+                   
+                ○  One-off and scheduled payments (off-session) using saved payment method. 
+                   
+                ○  Clear summary: base rent, our 3% platform fee, total charged. 
+                   
+           2.  Agency onboarding (Stripe Connect Custom + Hosted Onboarding) 
+              
+                ○  Agency sign-up → KYC/KYB via Stripe onboarding. 
+                   
+                ○  Capture trust account details; support multiple properties / trust accounts per 
+                  agency. 
+                   
+                ○  Payout schedule: default weekly (configurable per agency). 
+                   
+         3.  Receipts & notifications 
+           
+            ○  Email receipt to tenant on success. 
+               
+            ○  Failure notifications + smart retries (3, 24, 72 hrs); tenant can update card. 
+               
+            ○  Monthly statement email for tenant (optional v2). 
+               
+         4.  Reconciliation & exports 
+           
+            ○  Rich Stripe metadata + Level 2/3 enhanced data (where available) on 
+              charges/transfers. 
+               
+            ○  Daily CSV export (and API endpoint) compatible with agency software (e.g., 
+              MRI) + Xero-friendly CSV. 
+               
+         5.  Admin & reporting (read-only v1) 
+           
+            ○  Dashboard tiles: today’s collected, scheduled next 7 days, failed queue, payout 
+              status. 
+               
+            ○  Search by tenant, lease ID, agency ref, property. 
+       Stripe Architecture (opinionated, end-to-end) 
+         ●  Connect Custom accounts for agencies/landlords. Use Stripe Hosted Onboarding to 
+          minimize compliance burden. 
+           
+         ●  Destination Charges: 
+           
+            ○  payment_intent on platform with 
+              transfer_data[destination]=acct_… (agency). 
+               
+            ○  Take platform fee via application_fee_amount (3% of total). 
+               
+         ●  Saved payment methods: 
+           
+            ○  Use SetupIntents to store card for off-session billing (scheduled runs). 
+               
+            ○  Mark PaymentIntent with setup_future_usage='off_session'. 
+               
+         ●  Scheduling engine: 
+           
+                ○  Cron/queue worker (Cloud Scheduler + Cloud Tasks / BullMQ). 
+                   
+                ○  Idempotency keys per run (tenantId|leaseId|period|runAt). 
+                   
+           ●  Webhooks (must-handle) 
+               
+                ○  payment_intent.succeeded/failed, charge.dispute.created, 
+                  transfer.paid, payout.paid, 
+                  payment_method.automatically_updated. 
+                   
+           ●  PCI scope: SAQ-A (Stripe Elements/Checkout; no raw PAN on our servers). 
+               
+                                                                   
+         Data Model (minimal) 
+           ●  Tenant {id, legal_name, email, abn(optional), 
+              default_payment_method, timezone} 
+               
+           ●  Agency {id, name, abn/acn, stripe_account_id, trust_accounts:[{id, 
+              bsb, acct_last4, label}] } 
+               
+           ●  Property {id, agency_id, address_line, suburb, state, postcode, 
+              external_ref} 
+               
+           ●  Lease {id, property_id, tenant_id, agency_ref, rent_amount_cents, 
+              rent_currency, frequency(enum), due_rule(cron-ish), next_due_at, 
+              late_fee_policy(optional)} 
+               
+           ●  PaymentSchedule {id, lease_id, cadence(enum W/FN/M), 
+              by_day/by_dom, start_date, end_date|null, status} 
+               
+           ●  Payment {id, lease_id, scheduled_for, run_at, status, 
+              payment_intent_id, receipt_url, failure_reason} 
+               
+                                                                   
+         Reconciliation: required identifiers & Stripe fields 
+         Put these in charge.metadata (copied into transfers) and mirror in 
+         statement_descriptor_suffix (max 22 chars, abbreviated). Suggested schema: 
+         { 
+           "tenant_id": "TEN-12345", 
+           "tenant_name": "Acme Pty Ltd", 
+           "tenant_abn": "12 345 678 901", 
+           "lease_id": "LEA-7890", 
+           "agency_id": "AGY-456", 
+           "agency_ref": "MRI-UNIT-22B",     // their internal lease/property 
+         ID 
+           "property_addr": "22B George St, Sydney NSW 2000", 
+           "trust_acct_id": "TRUST-01", 
+           "period_start": "2025-10-01", 
+           "period_end": "2025-10-31", 
+           "due_rule": "MONTHLY_DOM_1", 
+           "invoice_no": "LP-2025-10-000123", 
+           "base_rent_cents": 250000, 
+           "platform_fee_cents": 7500,       // 3% 
+           "total_charged_cents": 257500, 
+           "schedule_id": "SCH-1122", 
+           "run_sequence": "2025-10-01#1" 
+         } 
+          
+           ●  Use Level 2/3 data where supported (merchant reference, tax amt=0 if N/A, line item: 
+             “Commercial Lease – [Address] – [Month/Year]”). 
+              
+           ●  Statement descriptor suffix example: LP 22BGEORGE OCT25. 
+              
+           ●  Ensure the Transfer to acct_… includes metadata mirroring the above for 
+             trust-account reconciliation. 
+              
+                                                                  
+         MRI / Agency Software Integration (MVP path → scalable 
+         path) 
+           ●  MVP: Nightly SFTP CSV drop (and downloadable from admin), columns: 
+              
+                ○  date, time, tenant_name, tenant_id, lease_id, agency_ref, 
+                  property_addr, period_start, period_end, amount_gross, 
+                  platform_fee, amount_net, card_last4, payment_intent_id, 
+                  transfer_id, payout_id 
+                   
+           ●  V2: REST push (webhook or polling) to agency system (MRI API), with idempotent 
+             upserts by invoice_no or payment_intent_id. 
+              
+           ●  V3: Realtime event webhooks to agencies (optional). 
+              
+                                                                  
+         Scheduling & Timezones 
+           ●  Store tenant timezone (default Australia/Sydney). 
+              
+           ●  Monthly rule options: DOM (e.g., 1st/15th/last) or relative (e.g., last business day). 
+              
+           ●  Retry ladder for failures: T+0 (instant) → T+1 day → T+3 days; pause schedule after 3 
+             failures and notify. 
+              
+                                                                  
+         Emails & Receipts 
+           ●  On success: Stripe receipt URL (or custom SendGrid/Mailgun template) showing: 
+              
+                ○  Base rent, platform fee (3%), total charged, property, period, last4, auth code, 
+                  invoice no., and a “For tax records” note. 
+                   
+           ●  On failure: actionable email + link to update card; auto-reschedule visible. 
+              
+                                                                  
+         Compliance, Risk & Ops (MVP posture) 
+           ●  KYC/KYB: rely on Stripe Connect onboarding (Custom + Hosted). 
+               
+           ●  Card disputes: basic alerting + agency unaffected (we hold platform risk; document 
+              policy). 
+               
+           ●  Fee handling: our 3% collected via application_fee_amount. 
+               
+           ●  GST/VAT: engineer to surface configuration toggle if platform fee is taxable 
+              (invoice/receipt fields ready). 
+               
+           ●  Rate limits & idempotency: required for scheduler and webhook handlers. 
+               
+                                                                   
+         Tech Notes (developer chooses stack) 
+           ●  Frontend: Minimal tenant portal + agency onboarding link; use Stripe Elements for card 
+              capture. 
+               
+           ●  Backend: RESTful services + job queue; secure secrets; robust webhook processor 
+              with signature verification. 
+               
+           ●  Storage: Postgres (UUID PKs), row-level audit. 
+               
+           ●  Infra: Any cloud; scheduled jobs + worker dynos; observability (logs/metrics/alerts). 
+         Success Criteria (MVP) 
+           ●  First agency onboarded; at least 10 live leases. 
+               
+           ●  100% of payouts reconciled to trust accounts using exported CSV in MRI. 
+               
+           ●  Scheduled runs execute with < ±5 min drift; failure rate < 2% with working retries. 
+               
+           ●  Receipts delivered for 100% successful payments. 
+          
