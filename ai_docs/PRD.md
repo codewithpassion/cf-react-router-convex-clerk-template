@@ -182,32 +182,28 @@ export const schedulerRouter = new Hono()
   .post('/schedules', async (c) => {
     const data = scheduleSchema.parse(await c.req.json());
 
-    // Store schedule in D1
-    const schedule = await c.env.DB.prepare(`
-      INSERT INTO payment_schedules (
-        lease_id, frequency, start_date, end_date,
-        day_of_week, day_of_month, status, next_run_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
-    `).bind(
-      data.leaseId,
-      data.frequency,
-      data.startDate,
-      data.endDate || null,
-      data.dayOfWeek || null,
-      data.dayOfMonth || null,
-      calculateNextRun(data)
-    ).run();
+    // Store schedule in Supabase using Drizzle ORM
+    const schedule = await db.insert(paymentSchedules).values({
+      leaseId: data.leaseId,
+      frequency: data.frequency,
+      startDate: data.startDate,
+      endDate: data.endDate || null,
+      dayOfWeek: data.dayOfWeek || null,
+      dayOfMonth: data.dayOfMonth || null,
+      status: 'active',
+      nextRunAt: calculateNextRun(data)
+    }).returning({ id: paymentSchedules.id });
 
     // Queue first payment if due immediately
     if (shouldRunToday(data)) {
       await c.env.PAYMENT_QUEUE.send({
         type: 'scheduled_payment',
-        scheduleId: schedule.meta.last_row_id,
+        scheduleId: schedule[0].id,
         leaseId: data.leaseId,
       });
     }
 
-    return c.json({ success: true, scheduleId: schedule.meta.last_row_id });
+    return c.json({ success: true, scheduleId: schedule[0].id });
   });
 
 function calculateNextRun(schedule: unknown): string {
@@ -236,95 +232,98 @@ function calculateNextRun(schedule: unknown): string {
 ### Database Schema
 ```sql
 -- examples/database/schema.sql
--- D1 Schema for LeasePoints MVP
+-- PostgreSQL Schema for LeasePoints MVP
+-- This schema will be defined using Drizzle ORM schema files
+-- See /db/schema.ts for the Drizzle schema definitions
 
+-- Raw SQL for reference (actual implementation uses Drizzle schema)
 CREATE TABLE tenants (
-  id TEXT PRIMARY KEY,
-  legal_name TEXT NOT NULL,
-  email TEXT NOT NULL UNIQUE,
-  abn TEXT,
-  stripe_customer_id TEXT UNIQUE,
-  default_payment_method_id TEXT,
-  timezone TEXT DEFAULT 'Australia/Sydney',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  legal_name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  abn VARCHAR(20),
+  stripe_customer_id VARCHAR(255) UNIQUE,
+  default_payment_method_id VARCHAR(255),
+  timezone VARCHAR(50) DEFAULT 'Australia/Sydney',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE agencies (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  abn TEXT,
-  stripe_account_id TEXT UNIQUE,
-  onboarding_status TEXT DEFAULT 'pending',
-  payout_schedule TEXT DEFAULT 'weekly',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  abn VARCHAR(20),
+  stripe_account_id VARCHAR(255) UNIQUE,
+  onboarding_status VARCHAR(50) DEFAULT 'pending',
+  payout_schedule VARCHAR(50) DEFAULT 'weekly',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE trust_accounts (
-  id TEXT PRIMARY KEY,
-  agency_id TEXT NOT NULL,
-  account_name TEXT NOT NULL,
-  bsb TEXT NOT NULL,
-  account_number_last4 TEXT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  agency_id UUID NOT NULL,
+  account_name VARCHAR(255) NOT NULL,
+  bsb VARCHAR(10) NOT NULL,
+  account_number_last4 VARCHAR(4) NOT NULL,
   is_default BOOLEAN DEFAULT FALSE,
-  FOREIGN KEY (agency_id) REFERENCES agencies(id)
+  FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE
 );
 
 CREATE TABLE properties (
-  id TEXT PRIMARY KEY,
-  agency_id TEXT NOT NULL,
-  address_line TEXT NOT NULL,
-  suburb TEXT NOT NULL,
-  state TEXT NOT NULL,
-  postcode TEXT NOT NULL,
-  external_ref TEXT,
-  FOREIGN KEY (agency_id) REFERENCES agencies(id)
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  agency_id UUID NOT NULL,
+  address_line VARCHAR(255) NOT NULL,
+  suburb VARCHAR(100) NOT NULL,
+  state VARCHAR(50) NOT NULL,
+  postcode VARCHAR(10) NOT NULL,
+  external_ref VARCHAR(100),
+  FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE
 );
 
 CREATE TABLE leases (
-  id TEXT PRIMARY KEY,
-  property_id TEXT NOT NULL,
-  tenant_id TEXT NOT NULL,
-  agency_ref TEXT NOT NULL,
-  rent_amount_cents INTEGER NOT NULL,
-  rent_currency TEXT DEFAULT 'AUD',
-  frequency TEXT CHECK(frequency IN ('weekly', 'fortnightly', 'monthly')),
-  next_due_at DATETIME,
-  status TEXT DEFAULT 'active',
-  FOREIGN KEY (property_id) REFERENCES properties(id),
-  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id UUID NOT NULL,
+  tenant_id UUID NOT NULL,
+  agency_ref VARCHAR(100) NOT NULL,
+  rent_amount_cents BIGINT NOT NULL,
+  rent_currency VARCHAR(3) DEFAULT 'AUD',
+  frequency VARCHAR(20) CHECK(frequency IN ('weekly', 'fortnightly', 'monthly')),
+  next_due_at TIMESTAMP WITH TIME ZONE,
+  status VARCHAR(50) DEFAULT 'active',
+  FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 CREATE TABLE payment_schedules (
-  id TEXT PRIMARY KEY,
-  lease_id TEXT NOT NULL,
-  frequency TEXT NOT NULL,
-  day_of_week INTEGER,
-  day_of_month INTEGER,
-  start_date DATETIME NOT NULL,
-  end_date DATETIME,
-  next_run_at DATETIME,
-  status TEXT DEFAULT 'active',
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lease_id UUID NOT NULL,
+  frequency VARCHAR(20) NOT NULL,
+  day_of_week INTEGER CHECK(day_of_week >= 0 AND day_of_week <= 6),
+  day_of_month INTEGER CHECK(day_of_month >= 1 AND day_of_month <= 31),
+  start_date TIMESTAMP WITH TIME ZONE NOT NULL,
+  end_date TIMESTAMP WITH TIME ZONE,
+  next_run_at TIMESTAMP WITH TIME ZONE,
+  status VARCHAR(50) DEFAULT 'active',
   failure_count INTEGER DEFAULT 0,
-  FOREIGN KEY (lease_id) REFERENCES leases(id)
+  FOREIGN KEY (lease_id) REFERENCES leases(id) ON DELETE CASCADE
 );
 
 CREATE TABLE payments (
-  id TEXT PRIMARY KEY,
-  lease_id TEXT NOT NULL,
-  schedule_id TEXT,
-  scheduled_for DATETIME NOT NULL,
-  processed_at DATETIME,
-  status TEXT NOT NULL,
-  stripe_payment_intent_id TEXT UNIQUE,
-  stripe_transfer_id TEXT,
-  amount_cents INTEGER NOT NULL,
-  platform_fee_cents INTEGER NOT NULL,
-  receipt_url TEXT,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lease_id UUID NOT NULL,
+  schedule_id UUID,
+  scheduled_for TIMESTAMP WITH TIME ZONE NOT NULL,
+  processed_at TIMESTAMP WITH TIME ZONE,
+  status VARCHAR(50) NOT NULL,
+  stripe_payment_intent_id VARCHAR(255) UNIQUE,
+  stripe_transfer_id VARCHAR(255),
+  amount_cents BIGINT NOT NULL,
+  platform_fee_cents BIGINT NOT NULL,
+  receipt_url VARCHAR(500),
   failure_reason TEXT,
   retry_count INTEGER DEFAULT 0,
-  FOREIGN KEY (lease_id) REFERENCES leases(id),
-  FOREIGN KEY (schedule_id) REFERENCES payment_schedules(id)
+  FOREIGN KEY (lease_id) REFERENCES leases(id) ON DELETE CASCADE,
+  FOREIGN KEY (schedule_id) REFERENCES payment_schedules(id) ON DELETE SET NULL
 );
 
 -- Indexes for performance
@@ -333,6 +332,63 @@ CREATE INDEX idx_payments_status ON payments(status);
 CREATE INDEX idx_payments_scheduled_for ON payments(scheduled_for);
 CREATE INDEX idx_schedules_next_run ON payment_schedules(next_run_at);
 CREATE INDEX idx_schedules_status ON payment_schedules(status);
+
+-- Add RLS policies for security
+ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agencies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trust_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE properties ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+
+```typescript
+// Example Drizzle schema structure for /db/schema.ts:
+import { pgTable, uuid, varchar, timestamp, boolean, bigint, integer } from 'drizzle-orm/pg-core';
+
+export const tenants = pgTable('tenants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  legalName: varchar('legal_name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  abn: varchar('abn', { length: 20 }),
+  stripeCustomerId: varchar('stripe_customer_id', { length: 255 }).unique(),
+  defaultPaymentMethodId: varchar('default_payment_method_id', { length: 255 }),
+  timezone: varchar('timezone', { length: 50 }).default('Australia/Sydney'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const agencies = pgTable('agencies', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  abn: varchar('abn', { length: 20 }),
+  stripeAccountId: varchar('stripe_account_id', { length: 255 }).unique(),
+  onboardingStatus: varchar('onboarding_status', { length: 50 }).default('pending'),
+  payoutSchedule: varchar('payout_schedule', { length: 50 }).default('weekly'),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export const paymentSchedules = pgTable('payment_schedules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  leaseId: uuid('lease_id').notNull().references(() => leases.id, { onDelete: 'cascade' }),
+  frequency: varchar('frequency', { length: 20 }).notNull(),
+  dayOfWeek: integer('day_of_week'),
+  dayOfMonth: integer('day_of_month'),
+  startDate: timestamp('start_date').notNull(),
+  endDate: timestamp('end_date'),
+  nextRunAt: timestamp('next_run_at'),
+  status: varchar('status', { length: 50 }).default('active'),
+  failureCount: integer('failure_count').default(0)
+});
+
+// Database connection using Drizzle
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+
+const connectionString = process.env.DATABASE_URL!;
+const client = postgres(connectionString);
+export const db = drizzle(client);
+```
 ```
 
 ## DOCUMENTATION
@@ -347,9 +403,11 @@ CREATE INDEX idx_schedules_status ON payment_schedules(status);
 - **Idempotency**: https://stripe.com/docs/api/idempotent-requests
 - **Webhook Security**: https://stripe.com/docs/webhooks/signatures
 
-### Cloudflare Workers Documentation
-- **Workers**: https://developers.cloudflare.com/workers/
-- **D1 Database**: https://developers.cloudflare.com/d1/
+### Infrastructure Documentation
+- **Cloudflare Workers**: https://developers.cloudflare.com/workers/
+- **Supabase**: https://supabase.com/docs
+- **Supabase Auth**: https://supabase.com/docs/guides/auth
+- **Supabase RLS**: https://supabase.com/docs/guides/auth/row-level-security
 - **Durable Objects**: https://developers.cloudflare.com/durable-objects/
 - **Queues**: https://developers.cloudflare.com/queues/
 - **Cron Triggers**: https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
@@ -361,6 +419,7 @@ CREATE INDEX idx_schedules_status ON payment_schedules(status);
 - **React Query**: https://tanstack.com/query/latest
 - **Zod Validation**: https://zod.dev/
 - **Stripe React**: https://stripe.com/docs/stripe-js/react
+- **Drizzle ORM**: https://orm.drizzle.team/
 
 ## TECHNICAL ARCHITECTURE
 
@@ -389,7 +448,7 @@ interface SystemArchitecture {
   backend: {
     api: {
       framework: 'Hono on Cloudflare Workers';
-      authentication: 'JWT with refresh tokens';
+      authentication: 'Clerk authentication with JWT';
       validation: 'Zod schemas';
       rateLimit: 'Cloudflare Rate Limiting';
     };
@@ -407,10 +466,11 @@ interface SystemArchitecture {
   };
 
   data: {
-    primary: 'D1 (SQLite edge database)';
+    primary: 'Supabase (PostgreSQL database)';
+    orm: 'Drizzle ORM for type-safe queries';
     cache: 'Cloudflare KV';
     files: 'R2 Storage (exports/reports)';
-    search: 'D1 with indexed queries';
+    search: 'PostgreSQL with indexed queries';
   };
 
   integrations: {
@@ -567,27 +627,27 @@ interface ExportRow {
 
 ## OTHER CONSIDERATIONS
 
-### Cloudflare Workers Limitations
+### Integration Considerations
 
-1. **Memory Limits**
+1. **Cloudflare Workers Limits**
    - 128MB max memory per worker
    - Solution: Stream large CSV exports to R2
    - Implementation: Use TransformStream for processing
 
-2. **CPU Time Limits**
-   - 10ms-50ms depending on plan
-   - Solution: Use Durable Objects for heavy processing
-   - Implementation: Queue long-running tasks
+2. **Database Connection Pooling**
+   - Supabase connection limits
+   - Solution: Use Drizzle with connection pooling
+   - Implementation: Configure postgres.js client properly
 
-3. **Request Size**
-   - 100MB max request size
-   - Solution: Direct uploads to R2 for large files
-   - Implementation: Multipart upload for exports
+3. **Authentication Integration**
+   - Clerk + Supabase RLS integration
+   - Solution: Pass Clerk user ID to Supabase RLS policies
+   - Implementation: Custom RLS policies based on Clerk user metadata
 
-4. **Subrequest Limits**
-   - 1000 subrequests per request
-   - Solution: Batch API calls, use caching
-   - Implementation: Aggregate Stripe API calls
+4. **Real-time Features**
+   - Supabase real-time subscriptions
+   - Solution: Use Supabase subscriptions for live updates
+   - Implementation: Subscribe to payment status changes
 
 ### Stripe Connect Considerations
 
@@ -610,6 +670,28 @@ interface ExportRow {
    - Platform holds dispute liability with destination charges
    - Solution: Comprehensive dispute response system
    - Maintain transaction evidence
+
+### PostgreSQL & Drizzle Considerations
+
+1. **Type Safety**
+   - Drizzle provides full TypeScript type safety
+   - Solution: Use generated types for all database operations
+   - Implementation: `drizzle-kit generate` for schema changes
+
+2. **Migration Management**
+   - Automatic migration generation
+   - Solution: Use Drizzle Kit for schema migrations
+   - Implementation: Version-controlled migration files
+
+3. **Connection Pooling**
+   - PostgreSQL connection limits with Supabase
+   - Solution: Configure postgres.js with proper pooling
+   - Implementation: Shared connection instance across workers
+
+4. **Query Performance**
+   - Complex queries with joins
+   - Solution: Use Drizzle's query builder for optimized SQL
+   - Implementation: Proper indexing and query optimization
 
 ### Australian Market Specifics
 
