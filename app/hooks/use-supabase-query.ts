@@ -1,26 +1,26 @@
 import { useUser } from "@clerk/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { TodosService } from "~/lib/db/todos";
-import { UsersService } from "~/lib/db/users";
-import { useSupabase } from "~/lib/supabase-provider";
 
-// Hook to get services
-export function useSupabaseServices() {
-	const { supabase } = useSupabase();
-	const usersService = new UsersService(supabase);
-	const todosService = new TodosService(supabase);
-
-	return { usersService, todosService };
+// Helper function to handle API responses
+async function handleResponse(response: Response) {
+	const json = await response.json();
+	if (!response.ok) {
+		throw new Error(json.error || "API request failed");
+	}
+	return json;
 }
 
 // User hooks
 export function useMe() {
 	const { user } = useUser();
-	const { usersService } = useSupabaseServices();
 
 	return useQuery({
 		queryKey: ["user", "me", user?.id],
-		queryFn: () => usersService.getMe(user?.id || ""),
+		queryFn: async () => {
+			const response = await fetch("/api/users?action=me");
+			const data = await handleResponse(response);
+			return data.user;
+		},
 		enabled: !!user?.id,
 		staleTime: 1000 * 60 * 5, // 5 minutes
 	});
@@ -28,11 +28,14 @@ export function useMe() {
 
 export function useUserStats() {
 	const { user } = useUser();
-	const { usersService } = useSupabaseServices();
 
 	return useQuery({
 		queryKey: ["user", "stats", user?.id],
-		queryFn: () => usersService.getStats(user?.id || ""),
+		queryFn: async () => {
+			const response = await fetch("/api/users?action=stats");
+			const data = await handleResponse(response);
+			return data.stats;
+		},
 		enabled: !!user?.id,
 		staleTime: 1000 * 60, // 1 minute
 	});
@@ -40,11 +43,14 @@ export function useUserStats() {
 
 export function useAdminStats() {
 	const { user } = useUser();
-	const { usersService } = useSupabaseServices();
 
 	return useQuery({
 		queryKey: ["admin", "stats"],
-		queryFn: () => usersService.getAdminStats(user?.id || ""),
+		queryFn: async () => {
+			const response = await fetch("/api/users?action=admin-stats");
+			const data = await handleResponse(response);
+			return data.stats;
+		},
 		enabled: !!user?.id,
 		staleTime: 1000 * 60, // 1 minute
 	});
@@ -59,11 +65,20 @@ export function useUsersList(
 	} = {},
 ) {
 	const { user } = useUser();
-	const { usersService } = useSupabaseServices();
 
 	return useQuery({
 		queryKey: ["users", "list", user?.id, options],
-		queryFn: () => usersService.listUsers(user?.id || "", options),
+		queryFn: async () => {
+			const params = new URLSearchParams({
+				action: "list",
+				...(options.search && { search: options.search }),
+				...(options.role && { role: options.role }),
+				...(options.limit && { limit: options.limit.toString() }),
+				...(options.offset && { offset: options.offset.toString() }),
+			});
+			const response = await fetch(`/api/users?${params}`);
+			return handleResponse(response);
+		},
 		enabled: !!user?.id,
 		staleTime: 1000 * 60, // 1 minute
 	});
@@ -71,11 +86,14 @@ export function useUsersList(
 
 export function useUserById(userId: string) {
 	const { user } = useUser();
-	const { usersService } = useSupabaseServices();
 
 	return useQuery({
 		queryKey: ["user", "byId", userId],
-		queryFn: () => usersService.getUserById(user?.id || "", userId),
+		queryFn: async () => {
+			const response = await fetch(`/api/users?action=by-id&userId=${userId}`);
+			const data = await handleResponse(response);
+			return data.user;
+		},
 		enabled: !!user?.id && !!userId,
 		staleTime: 1000 * 60 * 5, // 5 minutes
 	});
@@ -83,17 +101,32 @@ export function useUserById(userId: string) {
 
 // User mutations
 export function useSyncUser() {
-	const { usersService } = useSupabaseServices();
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (userData: {
+		mutationFn: async (userData: {
 			clerkId: string;
 			email: string;
 			name?: string | null;
 			imageUrl?: string | null;
 			roles?: string[];
-		}) => usersService.syncUser(userData),
+		}) => {
+			const formData = new FormData();
+			formData.append("intent", "sync");
+			formData.append("clerkId", userData.clerkId);
+			formData.append("email", userData.email);
+			if (userData.name) formData.append("name", userData.name);
+			if (userData.imageUrl) formData.append("imageUrl", userData.imageUrl);
+			if (userData.roles)
+				formData.append("roles", JSON.stringify(userData.roles));
+
+			const response = await fetch("/api/users", {
+				method: "POST",
+				body: formData,
+			});
+			const data = await handleResponse(response);
+			return data.user;
+		},
 		onSuccess: (data, variables) => {
 			// Invalidate and refetch user data
 			queryClient.invalidateQueries({
@@ -106,11 +139,14 @@ export function useSyncUser() {
 // Todo hooks
 export function useTodos() {
 	const { user } = useUser();
-	const { todosService } = useSupabaseServices();
 
 	return useQuery({
 		queryKey: ["todos", "list", user?.id],
-		queryFn: () => todosService.list(user?.id || ""),
+		queryFn: async () => {
+			const response = await fetch("/api/todos");
+			const data = await handleResponse(response);
+			return data.todos;
+		},
 		enabled: !!user?.id,
 		staleTime: 1000 * 30, // 30 seconds
 	});
@@ -119,11 +155,21 @@ export function useTodos() {
 // Todo mutations
 export function useCreateTodo() {
 	const { user } = useUser();
-	const { todosService } = useSupabaseServices();
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (text: string) => todosService.create(user?.id || "", text),
+		mutationFn: async (text: string) => {
+			const formData = new FormData();
+			formData.append("intent", "create");
+			formData.append("text", text);
+
+			const response = await fetch("/api/todos", {
+				method: "POST",
+				body: formData,
+			});
+			const data = await handleResponse(response);
+			return data.todo;
+		},
 		onSuccess: () => {
 			// Invalidate todos list and user stats
 			queryClient.invalidateQueries({ queryKey: ["todos", "list", user?.id] });
@@ -134,15 +180,25 @@ export function useCreateTodo() {
 
 export function useUpdateTodo() {
 	const { user } = useUser();
-	const { todosService } = useSupabaseServices();
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: ({
+		mutationFn: async ({
 			todoId,
 			completed,
-		}: { todoId: string; completed: boolean }) =>
-			todosService.update(user?.id || "", todoId, completed),
+		}: { todoId: string; completed: boolean }) => {
+			const formData = new FormData();
+			formData.append("intent", "update");
+			formData.append("todoId", todoId);
+			formData.append("completed", completed.toString());
+
+			const response = await fetch("/api/todos", {
+				method: "POST",
+				body: formData,
+			});
+			const data = await handleResponse(response);
+			return data.todo;
+		},
 		onSuccess: () => {
 			// Invalidate todos list and user stats
 			queryClient.invalidateQueries({ queryKey: ["todos", "list", user?.id] });
@@ -153,11 +209,21 @@ export function useUpdateTodo() {
 
 export function useDeleteTodo() {
 	const { user } = useUser();
-	const { todosService } = useSupabaseServices();
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (todoId: string) => todosService.remove(user?.id || "", todoId),
+		mutationFn: async (todoId: string) => {
+			const formData = new FormData();
+			formData.append("intent", "delete");
+			formData.append("todoId", todoId);
+
+			const response = await fetch("/api/todos", {
+				method: "POST",
+				body: formData,
+			});
+			const data = await handleResponse(response);
+			return data.success;
+		},
 		onSuccess: () => {
 			// Invalidate todos list and user stats
 			queryClient.invalidateQueries({ queryKey: ["todos", "list", user?.id] });
@@ -165,3 +231,13 @@ export function useDeleteTodo() {
 		},
 	});
 }
+
+// Keep the old names for backward compatibility
+export const useDrizzleServices = () => {
+	console.warn(
+		"useDrizzleServices is deprecated. Use individual hooks instead.",
+	);
+	return {};
+};
+
+export const useSupabaseServices = useDrizzleServices;
