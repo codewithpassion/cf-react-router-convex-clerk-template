@@ -4,6 +4,11 @@
 
 LeasePoints is a commercial lease payment intermediary platform that enables businesses to pay rent via credit cards (earning rewards) while ensuring landlords receive seamless trust account deposits with complete reconciliation data. The platform charges a 3% processing fee (tax-deductible for tenants) and handles all payment routing, scheduling, and compliance through Stripe Connect Custom accounts.
 
+### Primary Users & Roles
+
+- **Tenant (payer)**: Creates a profile, links leases, stores preferred cards (Amex emphasized), schedules payments (weekly/fortnightly/monthly), and receives payment receipts.
+- **Agency/Landlord (payee)**: Completes Stripe Connect onboarding, registers one or more trust accounts, receives payouts, and consumes reconciliation exports.
+
 ## FEATURE: Commercial Lease Payment Platform MVP
 
 Build a production-ready commercial lease payment platform using Cloudflare Workers, TypeScript, Hono API framework, React frontend, and Stripe Connect for payment processing. The system must handle tenant payment scheduling, agency/landlord onboarding with KYC/KYB, automated payment execution with retry logic, trust account reconciliation with rich metadata, and comprehensive reporting capabilities.
@@ -29,14 +34,17 @@ Build a production-ready commercial lease payment platform using Cloudflare Work
    - Application fee collection (3% platform fee)
    - Smart retry logic for failed payments (0hr, 24hr, 72hr)
    - Idempotent payment processing to prevent duplicates
-   - Comprehensive webhook handling for all payment states
+   - Comprehensive webhook handling for critical Stripe events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.dispute.created`, `transfer.paid`, `payout.paid`, and `payment_method.automatically_updated`
 
 4. **Reconciliation & Reporting**
    - Daily CSV/Excel exports with full transaction details
    - MRI/Yardi/AppFolio/RentManager/Buildium compatible data formats
+   - Provide optional Xero-friendly CSV layout for agencies still using Xero for trust accounting
    - Rich metadata on all charges and transfers
+   - Include Level 2/3 enhanced card data fields whenever supported by Stripe to maximize interchange benefits and reconciliation clarity
    - Statement descriptor management for bank reconciliation
    - Real-time dashboard with payment status tracking
+   - Admin search must support filters by tenant name, lease ID, agency reference, and property address for rapid issue triage
 
 ## EXAMPLES
 
@@ -711,6 +719,16 @@ interface ExportRow {
    - Solution: Integrate US bank account validation (ABA routing numbers)
    - Support for major US banks and credit unions
 
+### Compliance & PCI Scope
+
+1. **Card Data Handling**
+   - Keep platform within PCI SAQ-A scope by exclusively using Stripe Elements/hosted flows for card capture
+   - Prohibit storage or transmission of raw PAN data on LeasePoints infrastructure
+
+2. **Documentation & Monitoring**
+   - Maintain PCI compliance documentation for annual attestation
+   - Monitor Stripe dashboard for PCI-related alerts and enforce regular review cadence
+
 ### Error Handling Patterns
 
 ```typescript
@@ -907,6 +925,14 @@ bun test:performance -- --scenario=api-stress
 bun test:security -- --scan=api
 bun test:security -- --scan=dependencies
 ```
+
+## Success Criteria (MVP)
+
+- First US agency onboarded with verified trust account and receiving payouts through Stripe Connect
+- Minimum of 10 active leases executing via the scheduling engine with < ±5 minute drift on planned run times
+- 100% of payouts reconciled to agency trust accounts using the exported CSVs
+- Payment failure rate remains below 2% with retry ladder functioning end-to-end
+- Receipts delivered for every successful tenant payment, leveraging Stripe receipt URLs or branded templates
 
 ## Implementation Priority
 
