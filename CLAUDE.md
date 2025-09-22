@@ -6,10 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. **NO `any` TYPES IN TYPESCRIPT** - This project uses strict TypeScript with Biome. Using `any` will break the build.
 2. **RUN `bun check` BEFORE PRESENTING CODE** - Verify all type checking passes
 3. **USE PROPER TYPES** - Import from libraries, define interfaces, or use `unknown` with type guards
+4. **USE TABS FOR INDENTATION** - This project uses tabs, not spaces
+5. **USE DOUBLE QUOTES** - For all strings in TypeScript/JavaScript
 
 # React Router Cloudflare Todo App
 
-A modern, production-ready React application using React Router 7 deployed to Cloudflare with authentication, server-side rendering, and database integration.
+A modern, production-ready React application using React Router 7 deployed to Cloudflare Workers with authentication, server-side rendering, and PostgreSQL database integration via Drizzle ORM.
 
 ## Essential Commands
 
@@ -18,48 +20,82 @@ A modern, production-ready React application using React Router 7 deployed to Cl
 bun dev              # Start dev server at http://localhost:5173
 bun check            # Run all checks (types, linting, formatting)
 bun biome:check      # Run Biome linter and formatter only
+bun cf-typegen       # Generate Cloudflare environment types
 ```
 
-### Supabase Database
+### Database Management (Drizzle ORM)
 ```bash
-# Run database migrations (when using Supabase CLI)
-npx supabase migration up
-npx supabase db push    # Push migrations to production
+bun db:generate      # Generate SQL migrations from schema changes
+bun db:migrate       # Run migrations locally
+bun db:push          # Push schema to database (be careful in production)
+bun db:studio        # Open Drizzle Studio for database management
 ```
 
 ### Build & Deploy
 ```bash
 bun build            # Build for production
+bun build:staging    # Build for staging environment
+bun build:prod       # Build for production environment
 bun preview          # Preview production build locally
 bun deploy           # Build and deploy to Cloudflare
 bun deploy:staging   # Deploy to staging environment
 bun deploy:prod      # Deploy to production environment
 ```
 
-### Debugging
+### Debugging & Monitoring
 ```bash
 bun tail:prod        # Stream production logs
 bun tail:staging     # Stream staging logs
-wrangler secret put VARIABLE_NAME # Add production secrets
+bun start            # Run with wrangler dev
+wrangler secret put VARIABLE_NAME    # Add production secrets
+wrangler versions upload              # Deploy preview URL
+wrangler versions deploy              # Promote version to production
 ```
 
 ## Architecture Overview
 
 ### Project Structure
-- `/app` - Frontend React code (routes, components, hooks)
-- `/supabase` - Supabase migrations and schema
-- `/workers` - Cloudflare Workers entry points
+```
+/
+├── app/                  # React application code
+│   ├── routes/          # React Router route files
+│   ├── components/      # React components
+│   │   ├── ui/         # ShadCN UI components
+│   │   ├── features/   # Feature-specific components
+│   │   ├── layouts/    # Layout components
+│   │   └── shared/     # Shared components
+│   ├── lib/            # Utility functions and services
+│   │   ├── db/        # Database service layer (Drizzle ORM)
+│   │   └── *.ts       # Various utilities
+│   └── hooks/          # Custom React hooks
+├── drizzle/            # Database migrations (Drizzle Kit generated)
+├── supabase/           # Supabase specific files
+│   └── migrations/     # Supabase migrations (currently empty)
+├── workers/            # Cloudflare Workers entry points
+│   ├── app.ts         # Main worker entry
+│   ├── types.ts       # Worker type definitions
+│   └── *.ts           # Worker utilities
+├── ai_docs/            # AI documentation
+└── public/             # Static assets
+```
 
 ### Key Technologies
-- **Frontend**: React 19, React Router 7, TypeScript, TailwindCSS, ShadCN UI
-- **Backend**: Cloudflare Workers, Hono, Supabase
-- **Database**: Supabase (PostgreSQL) with real-time subscriptions
-- **Auth**: Clerk authentication (external service) + Supabase RLS
-- **Tooling**: Bun, Biome, Wrangler
+- **Frontend**: React 19, React Router 7, TypeScript, TailwindCSS 4.0
+- **UI Components**: ShadCN UI, Radix UI primitives
+- **Backend**: Cloudflare Workers, Hono framework
+- **Database**:
+  - PostgreSQL (via Supabase or direct connection)
+  - Drizzle ORM for type-safe database operations
+  - Supabase client for real-time subscriptions
+- **Authentication**: Clerk (external service)
+- **State Management**: React Query (TanStack Query)
+- **Tooling**: Bun, Biome, Wrangler, Vite
+- **Deployment**: Cloudflare Workers/Pages
 
 ### Path Aliases
-- `~/*` - Maps to `/app/*` (frontend imports)
-- `~~/*` - Maps to root-level packages (worker imports)
+- `~/*` - Maps to `/app/*` and `/api/*` (application code)
+- `~~/*` - Maps to `/workers/*` (worker code)
+- `+types/*` - Maps to React Router generated types
 
 ## Code Style & Conventions
 
@@ -97,15 +133,24 @@ wrangler secret put VARIABLE_NAME # Add production secrets
 
 ### Common Type Patterns in This Codebase
 ```typescript
-// Supabase types - ALWAYS import from generated files
+// Drizzle ORM types - infer from schema
+import { users, todos } from "~/lib/db/schema";
+import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
+type User = InferSelectModel<typeof users>;
+type NewUser = InferInsertModel<typeof users>;
+
+// Supabase types - import from generated files
 import type { Database } from "~/lib/database.types";
 type UserRow = Database["public"]["Tables"]["users"]["Row"];
 
 // Clerk types - import from Clerk packages
-import type { User } from "@clerk/nextjs/server";
+import type { User } from "@clerk/clerk-react";
+import type { ClerkClient } from "@clerk/backend";
 
 // React Router types
 import type { Route } from "./+types/route-name";
+export async function loader({ request }: Route.LoaderArgs) {}
+export async function action({ request }: Route.ActionArgs) {}
 
 // Component props - define explicit interfaces
 interface ButtonProps {
@@ -120,11 +165,13 @@ interface ApiResponse<T> {
   error?: string;
 }
 
-// Form data - define interfaces
-interface FormData {
-  email: string;
-  password: string;
-}
+// Form data with Zod validation
+import { z } from "zod";
+const TodoSchema = z.object({
+  text: z.string().min(1),
+  completed: z.boolean().default(false)
+});
+type TodoFormData = z.infer<typeof TodoSchema>;
 
 // NEVER DO THIS:
 // const user: any = getData();  ❌
@@ -132,37 +179,143 @@ interface FormData {
 // function process(data: any)   ❌
 ```
 
-## Supabase Data Layer
+## Database Architecture
 
-### Schema Location
-- Database migrations: `/supabase/migrations/`
-- Type definitions: `/app/lib/database.types.ts`
+### Dual Database System
+This project uses both **Drizzle ORM** and **Supabase Client**:
+- **Drizzle ORM**: Primary database ORM for type-safe queries and migrations
+- **Supabase Client**: Used for real-time subscriptions and authentication sync
+
+### Schema & Types
+- **Drizzle Schema**: `/app/lib/db/schema.ts` - Source of truth for database schema
+- **Supabase Types**: `/app/lib/database.types.ts` - Generated types for Supabase client
+- **Migrations**: `/drizzle/*.sql` - Auto-generated by Drizzle Kit
+
+### Database Tables
+```typescript
+// Users table (synced from Clerk)
+users {
+  id: uuid (primary key)
+  clerk_id: string (unique)
+  email: string (unique)
+  name: string | null
+  image_url: string | null
+  roles: string[] (default: ["user"])
+  created_at: timestamp
+  updated_at: timestamp
+}
+
+// Todos table
+todos {
+  id: uuid (primary key)
+  user_id: uuid (foreign key -> users.id)
+  text: string
+  completed: boolean (default: false)
+  created_at: timestamp
+}
+```
 
 ### Data Access Patterns
-1. **Service Classes**: Define database operations in `/app/lib/db/`
-2. **Frontend Hooks**: Use React Query hooks with Supabase services
-3. **Real-time Updates**: Supabase real-time subscriptions
-4. **Error Handling**: Always handle loading and error states in components
-5. **Row Level Security**: Use RLS policies for data access control
+1. **Service Layer**: Database operations in `/app/lib/db/*.server.ts`
+2. **Type Safety**: Always use Drizzle's typed queries
+3. **React Query**: Use hooks for client-side data fetching
+4. **Server Actions**: Use `.server.ts` files for server-only code
+5. **Connection**: Database connection in `/app/lib/db/connection.server.ts`
 
-## Authentication System
+### Example Database Operations
+```typescript
+// Service layer example
+import { db } from "~/lib/db/connection.server";
+import { todos } from "~/lib/db/schema";
+import { eq } from "drizzle-orm";
+
+// Get todos for a user
+export async function getUserTodos(userId: string) {
+  return await db
+    .select()
+    .from(todos)
+    .where(eq(todos.userId, userId));
+}
+
+// Create a new todo
+export async function createTodo(data: NewTodo) {
+  return await db.insert(todos).values(data).returning();
+}
+```
+
+## Authentication System (Clerk)
 
 ### User Roles
-- `user` - Default role for all users
-- `admin` - Administrative access  
-- `superadmin` - Full system access
+- `user` - Default role for all authenticated users
+- `admin` - Administrative access to user management
+- `superadmin` - Full system access including settings
 
-### Clerk Authentication
-- Authentication is handled by Clerk (external service)
-- User roles stored in Clerk's publicMetadata
-- Sign in/up via Clerk's prebuilt components
-- Session management handled by Clerk
+### Clerk Integration
+- **Provider**: Clerk handles all authentication
+- **User Sync**: Clerk users automatically synced to database via webhook/middleware
+- **Role Storage**: Roles stored in both Clerk's publicMetadata and database
+- **Components**: Using `@clerk/clerk-react` and `@clerk/react-router`
+- **Admin SDK**: Server-side user management via `/app/lib/clerk-admin.server.ts`
 
-### Protected Routes
-- Routes under `_auth.*` require authentication
-- Admin routes check for admin/superadmin roles
-- Use Supabase RLS policies for data access control
-- Clerk user data synced to Supabase automatically
+### Route Protection Patterns
+```typescript
+// Public routes
+/_index.tsx           // Homepage
+/login._index.tsx    // Login page
+/sign-up._index.tsx  // Sign-up page
+
+// Protected routes (require authentication)
+/_auth.*.tsx         // All routes with _auth prefix
+/_auth.todos.tsx     // User's todo list
+
+// Admin routes (require admin/superadmin role)
+/_auth.admin.*.tsx   // Admin dashboard and sub-pages
+```
+
+### Permission Checks
+- Client-side: Use Clerk's `useUser()` hook
+- Server-side: Check user roles from database or Clerk SDK
+- Permissions utility: `/app/lib/permissions.ts`
+
+## React Router 7 Conventions
+
+### Route File Naming
+- `_index.tsx` - Index routes
+- `$param.tsx` - Dynamic segments
+- `_auth.tsx` - Layout route for authenticated pages
+- `_auth.todos.tsx` - Nested protected route
+- `api.resource.ts` - API routes
+
+### Route Exports
+```typescript
+import type { Route } from "./+types/route-name";
+
+// SEO metadata
+export const meta: Route.MetaFunction = () => {
+  return [
+    { title: "Page Title" },
+    { name: "description", content: "Page description" }
+  ];
+};
+
+// Data loading
+export async function loader({ request, params }: Route.LoaderArgs) {
+  // Fetch and return data
+  return { data };
+}
+
+// Form actions
+export async function action({ request }: Route.ActionArgs) {
+  const formData = await request.formData();
+  // Process form submission
+  return { success: true };
+}
+
+// Component
+export default function RouteName({ loaderData }: Route.ComponentProps) {
+  return <div>{/* Component JSX */}</div>;
+}
+```
 
 ## Environment Variables
 
@@ -256,3 +409,35 @@ Components are installed to `/app/components/ui/`
 - Check magic link expiration (15 minutes)
 - Verify email service configuration
 - Check user roles in database
+
+## Best Practices
+
+### Performance
+- Use React Query for server state management
+- Implement proper loading states
+- Use Suspense boundaries where appropriate
+- Optimize images with Cloudflare Image Resizing
+- Leverage Cloudflare's edge caching
+
+### Security
+- Never expose sensitive data in client code
+- Use environment variables for secrets
+- Implement proper RBAC with Clerk roles
+- Validate all user inputs with Zod
+- Use HTTPS everywhere
+- Keep dependencies updated
+
+### Code Quality
+- Write comprehensive TypeScript types
+- Follow the established file structure
+- Use meaningful variable and function names
+- Keep components small and focused
+- Write server code in `.server.ts` files
+- Test critical paths
+
+### Git Workflow
+- Create feature branches
+- Write clear commit messages
+- Run `bun check` before committing
+- Use PR template if available
+- Request code reviews
