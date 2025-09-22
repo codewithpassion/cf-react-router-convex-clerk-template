@@ -1,7 +1,12 @@
-import { useQuery } from "convex/react";
+import { useUser } from "@clerk/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useFetcher } from "react-router";
 import type { Permission, UserRole } from "~/types/auth";
-import { api } from "../../convex/_generated/api";
+import {
+	useSupabaseServices,
+	useUserById,
+	useUsersList,
+} from "./use-supabase-query";
 
 interface RoleInfo {
 	name: UserRole;
@@ -45,30 +50,31 @@ interface UserStats {
 	totalSuperAdmins: number;
 }
 
-// Fetch users from Convex
+// Fetch users from Supabase
 export function useUsers(options: UseUsersOptions = {}) {
-	const data = useQuery(api.users.listUsers, {
-		search: options.search,
-		role: options.role,
-		limit: options.limit,
-		offset: options.offset,
-	});
+	const { data, isLoading, error } = useUsersList(options);
 
 	return {
 		data: data as UsersResponse | undefined,
-		isLoading: data === undefined,
-		error: null as { message: string } | null,
+		isLoading,
+		error: error ? { message: error.message } : null,
 	};
 }
 
 // Fetch user statistics
 export function useUserStats() {
-	const data = useQuery(api.users.getUserStats);
+	const { usersService } = useSupabaseServices();
+	const { user } = useUser();
+	const { data, isLoading, error } = useQuery({
+		queryKey: ["user", "admin-stats"],
+		queryFn: () => usersService.getUserStats(user?.id || ""),
+		enabled: !!user?.id,
+	});
 
 	return {
 		data: data as UserStats | null,
-		isLoading: data === undefined,
-		error: null as { message: string } | null,
+		isLoading,
+		error: error ? { message: error.message } : null,
 	};
 }
 
@@ -135,16 +141,13 @@ export function useRoleInfo() {
 }
 
 // Fetch single user by ID
-export function useUser(id: string, enabled = true) {
-	const data = useQuery(
-		api.users.getUserById,
-		enabled ? { userId: id } : "skip",
-	);
+export function useUserData(id: string, enabled = true) {
+	const { data, isLoading, error } = useUserById(id);
 
 	return {
 		data: data || null,
-		isLoading: data === undefined && enabled,
-		error: null as { message: string } | null,
+		isLoading: isLoading && enabled,
+		error: error ? { message: error.message } : null,
 	};
 }
 

@@ -14,7 +14,7 @@ import {
 	useDemoteUser,
 	usePromoteUser,
 	useUpdateUser,
-	useUser,
+	useUserData,
 } from "~/hooks/use-user-management";
 import type { UserRole } from "~/types/auth";
 
@@ -24,7 +24,7 @@ interface UserFormProps {
 }
 
 export function UserForm({ userId }: UserFormProps) {
-	const { data: user, isLoading } = useUser(userId || "", !!userId);
+	const { data: user, isLoading } = useUserData(userId || "", !!userId);
 	const updateUser = useUpdateUser();
 	const promoteUser = usePromoteUser();
 	const demoteUser = useDemoteUser();

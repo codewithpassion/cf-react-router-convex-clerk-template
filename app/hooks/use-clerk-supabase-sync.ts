@@ -1,26 +1,25 @@
 import { useUser } from "@clerk/react-router";
-import { useMutation } from "convex/react";
 import { useEffect } from "react";
-import { api } from "../../convex/_generated/api";
+import { useSyncUser } from "./use-supabase-query";
 
 /**
- * Hook to automatically sync Clerk user data to Convex database
- * This ensures the user exists in Convex when they sign in
+ * Hook to automatically sync Clerk user data to Supabase database
+ * This ensures the user exists in Supabase when they sign in
  */
-export function useClerkConvexSync() {
+export function useClerkSupabaseSync() {
 	const { user, isSignedIn, isLoaded } = useUser();
-	const syncUser = useMutation(api.users.syncUser);
+	const syncUser = useSyncUser();
 
 	useEffect(() => {
 		if (!isLoaded || !isSignedIn || !user) {
 			return;
 		}
 
-		// Sync user data to Convex
-		const sync = async () => {
+		// Sync user data to Supabase
+		const sync = () => {
 			try {
 				const roles = (user.publicMetadata?.roles as string[]) || ["user"];
-				await syncUser({
+				syncUser.mutate({
 					clerkId: user.id,
 					email: user.primaryEmailAddress?.emailAddress || "",
 					name: user.fullName || user.firstName || undefined,
@@ -28,7 +27,7 @@ export function useClerkConvexSync() {
 					roles,
 				});
 			} catch (error) {
-				console.error("Failed to sync user to Convex:", error);
+				console.error("Failed to sync user to Supabase:", error);
 			}
 		};
 

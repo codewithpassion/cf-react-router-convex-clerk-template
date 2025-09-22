@@ -1,17 +1,23 @@
-import { useQuery } from "convex/react";
 import { LoadingSpinner } from "~/components/ui/loading-spinner";
-import { api } from "../../../../convex/_generated/api";
+import { useTodos } from "~/hooks/use-supabase-query";
 import { AddTodoForm } from "./add-todo-form";
 import { TodoItem } from "./todo-item";
 
 export const TodoList = () => {
-	const todos = useQuery(api.todos.list);
-	const isLoading = todos === undefined;
+	const { data: todos, isLoading, error } = useTodos();
 
 	if (isLoading) {
 		return (
 			<div className="flex items-center justify-center py-8">
 				<LoadingSpinner size="lg" />
+			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<div className="text-center py-8 text-red-600">
+				Error loading todos. Please try again.
 			</div>
 		);
 	}
@@ -39,7 +45,7 @@ export const TodoList = () => {
 						</p>
 					</div>
 				) : (
-					todos?.map((todo) => <TodoItem key={todo._id} todo={todo} />)
+					todos?.map((todo) => <TodoItem key={todo.id} todo={todo} />)
 				)}
 			</div>
 		</div>

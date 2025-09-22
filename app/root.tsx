@@ -11,9 +11,13 @@ import {
 
 import type { Route } from "./+types/root";
 import "./tailwind.css";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "~/components/ui/sonner";
 import { AuthProvider } from "~/contexts/auth-context";
-import { ConvexClientProvider } from "~/lib/convex";
+import { SupabaseProvider } from "~/lib/supabase-provider";
+
+const queryClient = new QueryClient();
 
 export const links: Route.LinksFunction = () => [
 	{ rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -64,12 +68,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App({ loaderData }: Route.ComponentProps) {
 	return (
 		<ClerkProvider loaderData={loaderData}>
-			<ConvexClientProvider>
-				<AuthProvider>
-					<Outlet />
-					<Toaster />
-				</AuthProvider>
-			</ConvexClientProvider>
+			<QueryClientProvider client={queryClient}>
+				<SupabaseProvider>
+					<AuthProvider>
+						<Outlet />
+						<Toaster />
+					</AuthProvider>
+				</SupabaseProvider>
+				<ReactQueryDevtools initialIsOpen={false} />
+			</QueryClientProvider>
 		</ClerkProvider>
 	);
 }

@@ -20,10 +20,11 @@ bun check            # Run all checks (types, linting, formatting)
 bun biome:check      # Run Biome linter and formatter only
 ```
 
-### Convex Database
+### Supabase Database
 ```bash
-bun convex:dev       # Start Convex dev server
-bun convex:deploy    # Deploy to production
+# Run database migrations (when using Supabase CLI)
+npx supabase migration up
+npx supabase db push    # Push migrations to production
 ```
 
 ### Build & Deploy
@@ -46,14 +47,14 @@ wrangler secret put VARIABLE_NAME # Add production secrets
 
 ### Project Structure
 - `/app` - Frontend React code (routes, components, hooks)
-- `/convex` - Convex backend functions and schema
+- `/supabase` - Supabase migrations and schema
 - `/workers` - Cloudflare Workers entry points
 
 ### Key Technologies
 - **Frontend**: React 19, React Router 7, TypeScript, TailwindCSS, ShadCN UI
-- **Backend**: Cloudflare Workers, Hono, Convex
-- **Database**: Convex real-time database
-- **Auth**: Clerk authentication (external service)
+- **Backend**: Cloudflare Workers, Hono, Supabase
+- **Database**: Supabase (PostgreSQL) with real-time subscriptions
+- **Auth**: Clerk authentication (external service) + Supabase RLS
 - **Tooling**: Bun, Biome, Wrangler
 
 ### Path Aliases
@@ -96,9 +97,9 @@ wrangler secret put VARIABLE_NAME # Add production secrets
 
 ### Common Type Patterns in This Codebase
 ```typescript
-// Convex types - ALWAYS import from generated files
-import type { Doc, Id } from "../../convex/_generated/dataModel";
-import type { api } from "../../convex/_generated/api";
+// Supabase types - ALWAYS import from generated files
+import type { Database } from "~/lib/database.types";
+type UserRow = Database["public"]["Tables"]["users"]["Row"];
 
 // Clerk types - import from Clerk packages
 import type { User } from "@clerk/nextjs/server";
@@ -131,17 +132,18 @@ interface FormData {
 // function process(data: any)   ❌
 ```
 
-## Convex Data Layer
+## Supabase Data Layer
 
 ### Schema Location
-- Database schema: `/convex/schema.ts`
-- Functions: `/convex/` directory
+- Database migrations: `/supabase/migrations/`
+- Type definitions: `/app/lib/database.types.ts`
 
 ### Data Access Patterns
-1. **Convex Functions**: Define queries, mutations, and actions in `/convex/`
-2. **Frontend Hooks**: Use Convex React hooks (`useQuery`, `useMutation`)
-3. **Real-time Updates**: Automatic reactivity with Convex subscriptions
+1. **Service Classes**: Define database operations in `/app/lib/db/`
+2. **Frontend Hooks**: Use React Query hooks with Supabase services
+3. **Real-time Updates**: Supabase real-time subscriptions
 4. **Error Handling**: Always handle loading and error states in components
+5. **Row Level Security**: Use RLS policies for data access control
 
 ## Authentication System
 
@@ -159,7 +161,8 @@ interface FormData {
 ### Protected Routes
 - Routes under `_auth.*` require authentication
 - Admin routes check for admin/superadmin roles
-- Use Convex auth helpers for protected functions
+- Use Supabase RLS policies for data access control
+- Clerk user data synced to Supabase automatically
 
 ## Environment Variables
 
@@ -177,6 +180,8 @@ After modifying environment variables:
 ### Required Secrets
 - `VITE_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (client-side)
 - `CLERK_SECRET_KEY` - Clerk secret key (server-side)
+- `VITE_SUPABASE_URL` - Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Supabase anonymous key
 
 ## Component Development
 
@@ -196,7 +201,7 @@ Components are installed to `/app/components/ui/`
 
 ### Development
 - URL: http://localhost:5173
-- Database: Local Convex instance
+- Database: Local Supabase instance or hosted Supabase project
 - Email: Mock email service (logs to console)
 
 ### Staging
@@ -205,16 +210,16 @@ Components are installed to `/app/components/ui/`
 - Logs: `bun tail:staging`
 
 ### Production
-- Database: Production Convex deployment
+- Database: Production Supabase deployment
 - Deploy: `bun deploy:prod`
 - Logs: `bun tail:prod`
 
 ## Common Development Tasks
 
 ### Adding a New API Endpoint
-1. Create Convex function in `/convex/` directory
-2. Define schema if needed in `/convex/schema.ts`
-3. Use Convex hooks in React components
+1. Create service class methods in `/app/lib/db/` directory
+2. Define database operations with proper types
+3. Use React Query hooks in React components
 
 ### Adding a New Page
 1. Create route file in `/app/routes/`
@@ -223,10 +228,10 @@ Components are installed to `/app/components/ui/`
 4. Wrap in `PublicLayout` if needed
 
 ### Modifying Database Schema
-1. Edit `/convex/schema.ts`
-2. Update Convex functions as needed
-3. Test with `bun convex:dev`
-4. Deploy with `bun convex:deploy`
+1. Create new migration in `/supabase/migrations/`
+2. Update type definitions in `/app/lib/database.types.ts`
+3. Update service classes as needed
+4. Test locally and deploy to production
 
 ## Troubleshooting
 
@@ -243,9 +248,9 @@ Components are installed to `/app/components/ui/`
 - **NEVER commit or present code with `any` types**
 
 ### Database Errors
-- Check Convex function arguments and return types
-- Verify schema definitions match usage
-- Use Convex dashboard for debugging
+- Check Supabase service class methods and return types
+- Verify database schema matches type definitions
+- Use Supabase dashboard for debugging queries and logs
 
 ### Authentication Issues
 - Check magic link expiration (15 minutes)

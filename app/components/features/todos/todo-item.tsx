@@ -1,34 +1,23 @@
-import { useMutation } from "convex/react";
 import { Trash2 } from "lucide-react";
 import React from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { useDeleteTodo, useUpdateTodo } from "~/hooks/use-supabase-query";
+import type { Database } from "~/lib/database.types";
 import { cn } from "~/lib/utils";
-import { api } from "../../../../convex/_generated/api";
-import type { Doc } from "../../../../convex/_generated/dataModel";
 
-export const TodoItem = ({ todo }: { todo: Doc<"todos"> }) => {
-	const updateTodo = useMutation(api.todos.update);
-	const deleteTodo = useMutation(api.todos.remove);
-	const [isUpdating, setIsUpdating] = React.useState(false);
-	const [isDeleting, setIsDeleting] = React.useState(false);
+type TodoRow = Database["public"]["Tables"]["todos"]["Row"];
 
-	const handleUpdate = async (completed: boolean) => {
-		setIsUpdating(true);
-		try {
-			await updateTodo({ id: todo._id, completed });
-		} finally {
-			setIsUpdating(false);
-		}
+export const TodoItem = ({ todo }: { todo: TodoRow }) => {
+	const updateTodo = useUpdateTodo();
+	const deleteTodo = useDeleteTodo();
+
+	const handleUpdate = (completed: boolean) => {
+		updateTodo.mutate({ todoId: todo.id, completed });
 	};
 
-	const handleDelete = async () => {
-		setIsDeleting(true);
-		try {
-			await deleteTodo({ id: todo._id });
-		} finally {
-			setIsDeleting(false);
-		}
+	const handleDelete = () => {
+		deleteTodo.mutate(todo.id);
 	};
 
 	return (
@@ -36,7 +25,7 @@ export const TodoItem = ({ todo }: { todo: Doc<"todos"> }) => {
 			<Checkbox
 				checked={todo.completed}
 				onCheckedChange={(checked) => handleUpdate(!!checked)}
-				disabled={isUpdating}
+				disabled={updateTodo.isPending}
 				className="h-5 w-5"
 			/>
 			<span
@@ -52,7 +41,7 @@ export const TodoItem = ({ todo }: { todo: Doc<"todos"> }) => {
 				variant="ghost"
 				size="sm"
 				onClick={handleDelete}
-				disabled={isDeleting}
+				disabled={deleteTodo.isPending}
 				className="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:bg-red-50"
 			>
 				<Trash2 className="h-4 w-4" />

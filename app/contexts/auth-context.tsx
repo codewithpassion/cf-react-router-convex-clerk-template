@@ -1,7 +1,7 @@
 import { useAuth as useClerkAuth, useUser } from "@clerk/react-router";
 import type { UserResource } from "@clerk/types";
 import { createContext, useContext } from "react";
-import { useClerkConvexSync } from "~/hooks/use-clerk-convex-sync";
+import { useClerkSupabaseSync } from "~/hooks/use-clerk-supabase-sync";
 import { PermissionChecker, rolesHavePermission } from "~/lib/permissions";
 import type { Permission } from "~/lib/permissions";
 
@@ -33,8 +33,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 	const { user, isLoaded: isUserLoaded, isSignedIn } = useUser();
 	const { isLoaded: isAuthLoaded } = useClerkAuth();
 
-	// Sync Clerk user to Convex database
-	useClerkConvexSync();
+	// Sync Clerk user to Supabase database
+	useClerkSupabaseSync();
 
 	const isPending = !isUserLoaded || !isAuthLoaded;
 	const isAuthenticated = isSignedIn ?? false;

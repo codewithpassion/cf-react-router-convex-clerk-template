@@ -1,20 +1,16 @@
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { useAdminStats } from "./use-supabase-query";
 
 export function useDashboard() {
 	return {
-		// Dashboard overview - Convex automatically handles real-time updates
+		// Dashboard overview - using Supabase with React Query
 		useOverview: () => {
-			const stats = useQuery(api.users.getAdminStats);
+			const { data, isLoading, error, refetch, isRefetching } = useAdminStats();
 			return {
-				data: stats || undefined,
-				isLoading: stats === undefined,
-				error: null as { message: string } | null, // Properly typed error for compatibility
-				refetch: () => {
-					// Convex queries are reactive and refetch automatically
-					// This is a no-op for compatibility with the component
-				},
-				isRefetching: false, // Convex doesn't expose refetching state
+				data,
+				isLoading,
+				error: error ? { message: error.message } : null,
+				refetch,
+				isRefetching,
 			};
 		},
 	};

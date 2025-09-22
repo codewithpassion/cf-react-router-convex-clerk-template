@@ -1,25 +1,21 @@
-import { useMutation } from "convex/react";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { api } from "../../../../convex/_generated/api";
+import { useCreateTodo } from "~/hooks/use-supabase-query";
 
 export const AddTodoForm = () => {
 	const [text, setText] = useState("");
-	const [isCreating, setIsCreating] = useState(false);
-	const createTodo = useMutation(api.todos.create);
+	const createTodo = useCreateTodo();
 
-	const handleSubmit = async (e: React.FormEvent) => {
+	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		if (text.trim()) {
-			setIsCreating(true);
-			try {
-				await createTodo({ text: text.trim() });
-				setText("");
-			} finally {
-				setIsCreating(false);
-			}
+			createTodo.mutate(text.trim(), {
+				onSuccess: () => {
+					setText("");
+				},
+			});
 		}
 	};
 
@@ -30,12 +26,12 @@ export const AddTodoForm = () => {
 				value={text}
 				onChange={(e) => setText(e.target.value)}
 				placeholder="Add a new task..."
-				disabled={isCreating}
+				disabled={createTodo.isPending}
 				className="flex-1"
 			/>
 			<Button
 				type="submit"
-				disabled={!text.trim() || isCreating}
+				disabled={!text.trim() || createTodo.isPending}
 				className="gap-2"
 			>
 				<Plus className="h-4 w-4" />
