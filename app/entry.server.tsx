@@ -12,6 +12,7 @@ export default async function handleRequest(
 ) {
 	let shellRendered = false;
 	const userAgent = request.headers.get("user-agent");
+	console.log(">> handleRequest", { userAgent, loadContext });
 
 	const body = await renderToReadableStream(
 		<ServerRouter context={routerContext} url={request.url} />,

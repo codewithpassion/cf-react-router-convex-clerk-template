@@ -1,10 +1,12 @@
 import { LoadingSpinner } from "~/components/ui/loading-spinner";
 import { useTodos } from "~/hooks/use-supabase-query";
+import type { Todo } from "~/lib/db/schema";
 import { AddTodoForm } from "./add-todo-form";
 import { TodoItem } from "./todo-item";
 
 export const TodoList = () => {
 	const { data: todos, isLoading, error } = useTodos();
+	const typedTodos = todos as Todo[] | undefined;
 
 	if (isLoading) {
 		return (
@@ -22,8 +24,9 @@ export const TodoList = () => {
 		);
 	}
 
-	const completedCount = todos?.filter((todo) => todo.completed).length || 0;
-	const totalCount = todos?.length || 0;
+	const completedCount =
+		typedTodos?.filter((todo) => todo.completed).length || 0;
+	const totalCount = typedTodos?.length || 0;
 
 	return (
 		<div className="space-y-6">
@@ -38,14 +41,14 @@ export const TodoList = () => {
 
 			{/* Todo Items */}
 			<div className="space-y-2">
-				{todos?.length === 0 ? (
+				{typedTodos?.length === 0 ? (
 					<div className="text-center py-12">
 						<p className="text-gray-500">
 							No tasks yet. Add one above to get started!
 						</p>
 					</div>
 				) : (
-					todos?.map((todo) => <TodoItem key={todo.id} todo={todo} />)
+					typedTodos?.map((todo) => <TodoItem key={todo.id} todo={todo} />)
 				)}
 			</div>
 		</div>

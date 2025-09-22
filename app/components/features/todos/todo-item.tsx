@@ -3,12 +3,10 @@ import React from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { useDeleteTodo, useUpdateTodo } from "~/hooks/use-supabase-query";
-import type { Database } from "~/lib/database.types";
+import type { Todo } from "~/lib/db/schema";
 import { cn } from "~/lib/utils";
 
-type TodoRow = Database["public"]["Tables"]["todos"]["Row"];
-
-export const TodoItem = ({ todo }: { todo: TodoRow }) => {
+export const TodoItem = ({ todo }: { todo: Todo }) => {
 	const updateTodo = useUpdateTodo();
 	const deleteTodo = useDeleteTodo();
 

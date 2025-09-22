@@ -2,6 +2,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { type AppLoadContext, createRequestHandler } from "react-router";
+import { dbMiddleware } from "./db-middleware";
 import type { AppType } from "./types";
 
 declare module "react-router" {
@@ -21,6 +22,7 @@ const requestHandler = createRequestHandler(
 );
 
 const app = new Hono<AppType>();
+app.use(dbMiddleware);
 
 // CORS configuration for API routes
 app.use(

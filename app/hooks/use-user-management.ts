@@ -2,11 +2,7 @@ import { useUser } from "@clerk/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useFetcher } from "react-router";
 import type { Permission, UserRole } from "~/types/auth";
-import {
-	useSupabaseServices,
-	useUserById,
-	useUsersList,
-} from "./use-supabase-query";
+import { useUserById, useUsersList } from "./use-supabase-query";
 
 interface RoleInfo {
 	name: UserRole;
@@ -63,11 +59,17 @@ export function useUsers(options: UseUsersOptions = {}) {
 
 // Fetch user statistics
 export function useUserStats() {
-	const { usersService } = useSupabaseServices();
 	const { user } = useUser();
 	const { data, isLoading, error } = useQuery({
 		queryKey: ["user", "admin-stats"],
-		queryFn: () => usersService.getUserStats(user?.id || ""),
+		queryFn: async () => {
+			const response = await fetch("/api/users?action=admin-stats");
+			if (!response.ok) {
+				throw new Error("Failed to fetch user stats");
+			}
+			const json = (await response.json()) as { stats: UserStats | null };
+			return json.stats;
+		},
 		enabled: !!user?.id,
 	});
 

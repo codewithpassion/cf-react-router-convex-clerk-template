@@ -1,8 +1,12 @@
 /// <reference path="../worker-configuration.d.ts" />
 
+import type { Database } from "~/lib/db/connection.server";
+
 declare global {
 	interface CloudflareEnvironment extends CloudflareBindings {}
-	interface CloudflareVariables {}
+	interface CloudflareVariables {
+		DB: Database;
+	}
 }
 
 export type AppType = {

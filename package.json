@@ -15,12 +15,18 @@
 		"check": "bun cf-typegen && react-router typegen && bun run biome:check && bunx tsc --noEmit -p ./tsconfig.cloudflare.json",
 		"biome:check": "biome check --fix && biome format --write",
 		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:push": "drizzle-kit push",
+		"db:studio": "drizzle-kit studio",
 		"tail:prod": "wrangler tail -e production",
 		"tail:staging": "wrangler tail -e staging",
 		"prepare": "husky"
 	},
 	"dependencies": {
-		"@clerk/react-router": "^1.9.8",
+		"@clerk/clerk-react": "^5.47.0",
+		"@clerk/react-router": "^1.10.0",
+		"@clerk/remix": "^4.12.0",
 		"@hookform/resolvers": "^5.1.1",
 		"@radix-ui/react-avatar": "^1.1.10",
 		"@radix-ui/react-checkbox": "^1.1.4",
@@ -42,11 +48,14 @@
 		"clsx": "^2.1.1",
 		"crypto": "^1.0.1",
 		"dotenv": "^16.4.7",
+		"drizzle-kit": "^0.31.4",
+		"drizzle-orm": "^0.44.5",
 		"framer-motion": "^12.6.3",
 		"hono": "^4.7.5",
 		"isbot": "^5.1.17",
 		"lucide-react": "^0.486.0",
 		"next-themes": "^0.4.6",
+		"postgres": "^3.4.7",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
 		"react-hook-form": "^7.58.0",
@@ -74,6 +83,7 @@
 		"stream-browserify": "^3.0.0",
 		"tailwindcss": "^4.0.0",
 		"typescript": "^5.7.2",
+		"vite-plugin-node-polyfills": "^0.24.0",
 		"wrangler": "^4.34.0"
 	}
 }

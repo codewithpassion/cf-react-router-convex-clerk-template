@@ -1,9 +1,22 @@
 import { useUser } from "@clerk/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type {
+	AdminStatsResponse,
+	ApiResponse,
+	TodoResponse,
+	TodosListResponse,
+	UserByIdResponse,
+	UserResponse,
+	UserStatsResponse,
+	UserSyncResponse,
+	UsersListResponse,
+} from "~/types/api";
 
 // Helper function to handle API responses
-async function handleResponse(response: Response) {
-	const json = await response.json();
+async function handleResponse<T extends ApiResponse = ApiResponse>(
+	response: Response,
+): Promise<T> {
+	const json = (await response.json()) as T;
 	if (!response.ok) {
 		throw new Error(json.error || "API request failed");
 	}
@@ -18,7 +31,7 @@ export function useMe() {
 		queryKey: ["user", "me", user?.id],
 		queryFn: async () => {
 			const response = await fetch("/api/users?action=me");
-			const data = await handleResponse(response);
+			const data = await handleResponse<UserResponse>(response);
 			return data.user;
 		},
 		enabled: !!user?.id,
@@ -33,7 +46,7 @@ export function useUserStats() {
 		queryKey: ["user", "stats", user?.id],
 		queryFn: async () => {
 			const response = await fetch("/api/users?action=stats");
-			const data = await handleResponse(response);
+			const data = await handleResponse<UserStatsResponse>(response);
 			return data.stats;
 		},
 		enabled: !!user?.id,
@@ -48,7 +61,7 @@ export function useAdminStats() {
 		queryKey: ["admin", "stats"],
 		queryFn: async () => {
 			const response = await fetch("/api/users?action=admin-stats");
-			const data = await handleResponse(response);
+			const data = await handleResponse<AdminStatsResponse>(response);
 			return data.stats;
 		},
 		enabled: !!user?.id,
@@ -91,7 +104,7 @@ export function useUserById(userId: string) {
 		queryKey: ["user", "byId", userId],
 		queryFn: async () => {
 			const response = await fetch(`/api/users?action=by-id&userId=${userId}`);
-			const data = await handleResponse(response);
+			const data = await handleResponse<UserByIdResponse>(response);
 			return data.user;
 		},
 		enabled: !!user?.id && !!userId,
@@ -124,7 +137,7 @@ export function useSyncUser() {
 				method: "POST",
 				body: formData,
 			});
-			const data = await handleResponse(response);
+			const data = await handleResponse<UserSyncResponse>(response);
 			return data.user;
 		},
 		onSuccess: (data, variables) => {
@@ -144,7 +157,7 @@ export function useTodos() {
 		queryKey: ["todos", "list", user?.id],
 		queryFn: async () => {
 			const response = await fetch("/api/todos");
-			const data = await handleResponse(response);
+			const data = await handleResponse<TodosListResponse>(response);
 			return data.todos;
 		},
 		enabled: !!user?.id,
@@ -167,7 +180,7 @@ export function useCreateTodo() {
 				method: "POST",
 				body: formData,
 			});
-			const data = await handleResponse(response);
+			const data = await handleResponse<TodoResponse>(response);
 			return data.todo;
 		},
 		onSuccess: () => {
@@ -196,7 +209,7 @@ export function useUpdateTodo() {
 				method: "POST",
 				body: formData,
 			});
-			const data = await handleResponse(response);
+			const data = await handleResponse<TodoResponse>(response);
 			return data.todo;
 		},
 		onSuccess: () => {
@@ -221,7 +234,9 @@ export function useDeleteTodo() {
 				method: "POST",
 				body: formData,
 			});
-			const data = await handleResponse(response);
+			const data = await handleResponse<{ success: boolean; error?: string }>(
+				response,
+			);
 			return data.success;
 		},
 		onSuccess: () => {

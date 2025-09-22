@@ -1,37 +1,48 @@
+import type { Route } from "+types/api.users";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	data,
 } from "react-router";
-import { db } from "~/lib/db/connection.server";
 import { UsersService } from "~/lib/db/users.server";
+import type {
+	AdminStatsResponse,
+	ApiErrorResponse,
+	UserByIdResponse,
+	UserResponse,
+	UserStatsResponse,
+	UserSyncResponse,
+	UsersListResponse,
+} from "~/types/api";
 
-export async function loader({ request, context }: LoaderFunctionArgs) {
-	const { userId: clerkId } = await getAuth({ request, context });
+export async function loader({ request, context, params }: Route.LoaderArgs) {
+	const authResult = await getAuth({ request, context, params });
+	const clerkId =
+		authResult && "userId" in authResult ? authResult.userId : null;
 
 	if (!clerkId) {
-		return data({ error: "Unauthorized" }, { status: 401 });
+		return data<ApiErrorResponse>({ error: "Unauthorized" }, { status: 401 });
 	}
 
 	const url = new URL(request.url);
 	const action = url.searchParams.get("action");
-	const usersService = new UsersService(db);
+	const usersService = new UsersService(context.cloudflare.var.DB);
 
 	switch (action) {
 		case "me": {
 			const user = await usersService.getMe(clerkId);
-			return data({ user });
+			return data<UserResponse>({ user });
 		}
 
 		case "stats": {
 			const stats = await usersService.getStats(clerkId);
-			return data({ stats });
+			return data<UserStatsResponse>({ stats });
 		}
 
 		case "admin-stats": {
 			const stats = await usersService.getAdminStats(clerkId);
-			return data({ stats });
+			return data<AdminStatsResponse>({ stats });
 		}
 
 		case "list": {
@@ -50,33 +61,41 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 				limit,
 				offset,
 			});
-			return data(result);
+			return data<UsersListResponse | null>(result);
 		}
 
 		case "by-id": {
 			const targetUserId = url.searchParams.get("userId");
 			if (!targetUserId) {
-				return data({ error: "User ID required" }, { status: 400 });
+				return data<ApiErrorResponse>(
+					{ error: "User ID required" },
+					{ status: 400 },
+				);
 			}
 			const user = await usersService.getUserById(clerkId, targetUserId);
-			return data({ user });
+			return data<UserByIdResponse>({ user });
 		}
 
 		default:
-			return data({ error: "Invalid action" }, { status: 400 });
+			return data<ApiErrorResponse>(
+				{ error: "Invalid action" },
+				{ status: 400 },
+			);
 	}
 }
 
-export async function action({ request, context }: ActionFunctionArgs) {
-	const { userId: clerkId } = await getAuth({ request, context });
+export async function action({ request, context, params }: Route.ActionArgs) {
+	const authResult = await getAuth({ request, context, params });
+	const clerkId =
+		authResult && "userId" in authResult ? authResult.userId : null;
 
 	if (!clerkId) {
-		return data({ error: "Unauthorized" }, { status: 401 });
+		return data<ApiErrorResponse>({ error: "Unauthorized" }, { status: 401 });
 	}
 
 	const formData = await request.formData();
 	const intent = formData.get("intent");
-	const usersService = new UsersService(db);
+	const usersService = new UsersService(context.cloudflare.var.DB);
 
 	switch (intent) {
 		case "sync": {
@@ -91,10 +110,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
 			};
 
 			const user = await usersService.syncUser(userData);
-			return data({ user });
+			return data<UserSyncResponse>({ user });
 		}
 
 		default:
-			return data({ error: "Invalid intent" }, { status: 400 });
+			return data<ApiErrorResponse>(
+				{ error: "Invalid intent" },
+				{ status: 400 },
+			);
 	}
 }

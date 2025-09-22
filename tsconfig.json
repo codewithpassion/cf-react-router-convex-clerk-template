@@ -23,7 +23,8 @@
 		"baseUrl": ".",
 		"paths": {
 			"~/*": ["./app/*", "./api/*"],
-			"~~/*": ["./workers/*"]
+			"~~/*": ["./workers/*"],
+			"+types/*": ["./.react-router/types/app/routes/+types/*"]
 		}
 	}
 }
