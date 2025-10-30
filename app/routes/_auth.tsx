@@ -1,4 +1,4 @@
-import { getAuth } from "@clerk/react-router/ssr.server";
+import { getAuth } from "@clerk/react-router/server";
 import { type LoaderFunctionArgs, Outlet, redirect } from "react-router";
 
 export async function loader(args: LoaderFunctionArgs) {

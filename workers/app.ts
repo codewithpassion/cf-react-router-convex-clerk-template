@@ -1,16 +1,18 @@
 /// <reference path="../worker-configuration.d.ts" />
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { type AppLoadContext, createRequestHandler } from "react-router";
+import { RouterContextProvider, createRequestHandler } from "react-router";
 import type { AppType } from "./types";
 
+export type CloudflareContextType = {
+	env: CloudflareBindings;
+	var: CloudflareVariables;
+	ctx: ExecutionContext;
+};
+
 declare module "react-router" {
-	export interface AppLoadContext {
-		cloudflare: {
-			env: CloudflareEnvironment;
-			var: CloudflareVariables;
-			ctx: ExecutionContext;
-		};
+	export interface RouterContextProvider {
+		cloudflare: CloudflareContextType;
 	}
 }
 
@@ -47,14 +49,15 @@ app.get("/api/health", (c) => {
 });
 
 app.use(async (c) => {
-	const reactRouterContext = {
-		cloudflare: {
-			env: c.env,
-			var: c.var,
-			ctx: c.executionCtx,
-		},
-	} as unknown as AppLoadContext;
-	return requestHandler(c.req.raw, reactRouterContext);
+	const cloudflareContextValue: CloudflareContextType = {
+		env: c.env,
+		var: c.var,
+		ctx: c.executionCtx,
+	};
+	const rCotnextProvider = new RouterContextProvider();
+	rCotnextProvider.cloudflare = cloudflareContextValue;
+
+	return requestHandler(c.req.raw, rCotnextProvider);
 });
 
 export default {

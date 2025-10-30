@@ -1,5 +1,5 @@
 import { ClerkProvider } from "@clerk/react-router";
-import { rootAuthLoader } from "@clerk/react-router/ssr.server";
+import { clerkMiddleware, rootAuthLoader } from "@clerk/react-router/server";
 import {
 	Links,
 	Meta,
@@ -28,17 +28,20 @@ export const links: Route.LinksFunction = () => [
 	},
 ];
 
+export const middleware: Route.MiddlewareFunction[] = [clerkMiddleware()];
+
 export async function loader(args: Route.LoaderArgs) {
+	const cf = args.context.cloudflare;
 	return rootAuthLoader(
 		args,
 		({ request, context, params }) => {
 			const { sessionId, userId, getToken } = request.auth;
 			// Add logic to fetch data
-			return { convexUrl: context.cloudflare.env.VITE_CONVEX_URL };
+			return { convexUrl: cf.env.VITE_CONVEX_URL || "" };
 		},
 		{
-			secretKey: args.context.cloudflare.env.CLERK_SECRET_KEY,
-			publishableKey: args.context.cloudflare.env.VITE_CLERK_PUBLISHABLE_KEY,
+			secretKey: cf.env.CLERK_SECRET_KEY,
+			publishableKey: cf.env.VITE_CLERK_PUBLISHABLE_KEY,
 		}, // Options
 	);
 }
