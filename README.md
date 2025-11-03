@@ -18,6 +18,48 @@ A modern, production-ready template for building full-stack React applications u
 
 ## Getting Started
 
+### Template application
+
+This is a template project representing a simple Todo app.
+
+To convert it into your own app, use `claude-code` and run the `/transform-to-app` command (see `.claude/commands/transform-to-app.md`).
+
+example:
+```
+/transform-to-app confirm worktracking-app
+```
+
+This will remove all the `Todo-App` specifics and renmae it to `Worktracking-App`.
+
+### Clerk
+
+1. First, copy `.env.example` to `.env`
+
+2. To use the authentication setup, to go `https://clerk.com` and create an accound. 
+
+3. Then, within the Clerk dashboard, create an application, `Configure` > `API Keys` > `React Router`
+And copy:
+- VITE_CLERK_PUBLISHABLE_KEY=pk_test_YOUR_KEY
+- CLERK_SECRET_KEY=sk_test_YOUR_KEY
+and add then to you `.env`.
+
+4. Then copy the `Frontend API URL` (right hand side in the clerk dashboard) and att `CLERK_JWT_ISSUER_DOMAIN=URL` to `.env`
+
+5. Go to `JWT templates` > `Add new template` and select `Convex`
+
+
+### Convex
+
+For development, you can run convex locally.
+
+1. Run `bun run convex:dev` 
+2. Create a new project
+3. create a `local` deployment
+4. Convex will complain about a environment variable not being set - that's ok
+5. in a new shell/terminal, run `./setup_convex_env.sh` - this will set the missing environment variable from `.env`
+
+Now you're ready run roll!
+
 ### Installation
 
 Install the dependencies:
